@@ -102,166 +102,161 @@ print_section "Creating Partitions"
 print_info "Creating EFI partition (512MB) and main partition for encryption"
 
 # Using fdisk instead of cfdisk for automation
-print_info "Creating partition table..."
 (
 	echo g     # Create a new empty GPT partition table
-	echo n     # Add new partition (EFI)
+	echo n     # Add a new partition (EFI)
 	echo 1     # Partition number 1
-	echo       # Default first sector
-	echo +512M # Size 512MB
+	echo       # First sector (default)
+	echo +512M # Last sector (512MB for EFI)
 	echo t     # Change partition type
-	echo 1     # EFI System
-	echo n     # Add new partition (Main)
+	echo 1     # Select partition 1
+	echo 1     # EFI System type
+	echo n     # Add a new partition (LUKS)
 	echo 2     # Partition number 2
-	echo       # Default first sector
-	echo       # Default last sector (rest of disk)
+	echo       # First sector (default)
+	echo       # Last sector (rest of disk)
 	echo w     # Write changes and exit
 ) | fdisk $disk_path
 
-check_success "Partitions created successfully." "Failed to create partitions."
+# Display new partition layout
+print_info "New partition layout:"
+lsblk $disk_path
+
+# Create filesystems
+print_section "Creating Filesystems"
 
 # Format EFI partition
 print_info "Formatting EFI partition..."
 mkfs.fat -F32 ${disk_path}1
 check_success "EFI partition formatted successfully." "Failed to format EFI partition."
 
-# Setup encryption
-print_section "Setting up Encryption"
-print_warning "You will be asked to enter an encryption passphrase. DO NOT FORGET THIS PASSPHRASE!"
-
+# Create encrypted LUKS container
+print_info "Creating encrypted LUKS container..."
+print_warning "You will be asked to enter a passphrase for disk encryption."
+echo "This passphrase will be required each time you boot your system."
 cryptsetup luksFormat --type luks2 ${disk_path}2
-check_success "Encrypted container created successfully." "Failed to create encrypted container."
+check_success "LUKS container created successfully." "Failed to create LUKS container."
 
+# Open the encrypted container
 print_info "Opening encrypted container..."
+print_warning "Enter the passphrase you just created."
 cryptsetup open ${disk_path}2 cryptlvm
 check_success "Encrypted container opened successfully." "Failed to open encrypted container."
 
-# Setup LVM
-print_section "Setting up LVM"
-print_info "Creating physical volume..."
+# Create physical volume
+print_info "Creating LVM physical volume..."
 pvcreate /dev/mapper/cryptlvm
 check_success "Physical volume created successfully." "Failed to create physical volume."
 
+# Create volume group
 print_info "Creating volume group..."
 vgcreate vg0 /dev/mapper/cryptlvm
 check_success "Volume group created successfully." "Failed to create volume group."
 
-# Get partition sizes from user
-print_info "Setting up logical volumes. Please specify sizes for each partition."
-read -p "Size for ROOT partition (e.g., 20G): " root_size
-read -p "Size for VAR partition (e.g., 15G): " var_size
-read -p "Size for USR partition (e.g., 20G): " usr_size
-read -p "Size for DATA partition (e.g., 10G): " data_size
-read -p "Size for HOME partition (e.g., 30G): " home_size
-read -p "Size for SWAP partition (e.g., 8G): " swap_size
-
-print_info "Creating logical volumes with specified sizes..."
-lvcreate -L $root_size vg0 -n root
-lvcreate -L $var_size vg0 -n var
-lvcreate -L $usr_size vg0 -n usr
-lvcreate -L $data_size vg0 -n data
-lvcreate -L $home_size vg0 -n home
-lvcreate -L $swap_size vg0 -n swap
-
+# Create logical volumes
+print_info "Creating logical volumes..."
+lvcreate -L 8G vg0 -n swap
+lvcreate -L 30G vg0 -n root
+lvcreate -l 100%FREE vg0 -n home
 check_success "Logical volumes created successfully." "Failed to create logical volumes."
 
-# Format partitions
-print_section "Formatting Partitions"
-
-# Get mount options from user
-print_info "Choose mount options for each partition"
-read -p "Mount options for /boot (default: nosuid,nodev,noexec): " boot_options
-boot_options=${boot_options:-nosuid,nodev,noexec}
-
-read -p "Mount options for /home (default: nosuid,nodev,noexec): " home_options
-home_options=${home_options:-nosuid,nodev,noexec}
-
-read -p "Mount options for /var (default: nosuid,nodev,noexec): " var_options
-var_options=${var_options:-nosuid,nodev,noexec}
-
-read -p "Mount options for /usr (default: nodev): " usr_options
-usr_options=${usr_options:-nodev}
-
-read -p "Mount options for /data (default: defaults): " data_options
-data_options=${data_options:-defaults}
-
-# Format partitions
-print_info "Formatting partitions..."
+# Format logical volumes
+print_info "Formatting logical volumes..."
 mkfs.ext4 /dev/vg0/root
-mkfs.ext4 /dev/vg0/var
-mkfs.ext4 /dev/vg0/usr
-mkfs.ext4 /dev/vg0/data
 mkfs.ext4 /dev/vg0/home
 mkswap /dev/vg0/swap
+check_success "Logical volumes formatted successfully." "Failed to format logical volumes."
 
-check_success "Partitions formatted successfully." "Failed to format partitions."
+# Mount filesystems
+print_section "Mounting Filesystems"
 
-# Mount partitions
-print_section "Mounting Partitions"
-print_info "Mounting partitions with specified options..."
-
+print_info "Mounting root partition..."
 mount /dev/vg0/root /mnt
-mkdir -p /mnt/{boot,home,var,usr,data}
-mount ${disk_path}1 /mnt/boot -o $boot_options
-mount /dev/vg0/home /mnt/home -o $home_options
-mount /dev/vg0/var /mnt/var -o $var_options
-mount /dev/vg0/usr /mnt/usr -o $usr_options
-mount /dev/vg0/data /mnt/data -o $data_options
+mkdir -p /mnt/home /mnt/boot
+mount /dev/vg0/home /mnt/home
+mount ${disk_path}1 /mnt/boot
 swapon /dev/vg0/swap
+check_success "Filesystems mounted successfully." "Failed to mount filesystems."
 
-check_success "Partitions mounted successfully." "Failed to mount partitions."
-
-# Install base packages
+# Install base system
 print_section "Installing Base System"
 
-# Get additional packages from user
-read -p "Enter additional packages to install (space-separated): " additional_packages
-base_packages="base base-devel nano vim networkmanager lvm2 cryptsetup grub efibootmgr linux linux-firmware sof-firmware $additional_packages"
-
-print_info "Installing base packages: $base_packages"
-pacstrap /mnt $base_packages
-
-check_success "Base system installed successfully." "Failed to install base system."
+print_info "Installing essential packages..."
+pacstrap /mnt base base-devel linux linux-firmware lvm2 networkmanager vim nano sudo grub efibootmgr
+check_success "Base packages installed successfully." "Failed to install base packages."
 
 # Generate fstab
-print_section "Generating fstab"
 print_info "Generating fstab..."
-genfstab -U /mnt >/mnt/etc/fstab.new
+genfstab -U /mnt >>/mnt/etc/fstab
+print_info "Generated fstab:"
+cat /mnt/etc/fstab
 
-# Show fstab to user
-echo -e "\n${YELLOW}Generated fstab:${NC}"
-cat /mnt/etc/fstab.new
-echo
+# Chroot and configure
+print_section "System Configuration"
 
-# Confirm fstab looks good
-if confirm "Does the fstab look correct?"; then
-	mv /mnt/etc/fstab.new /mnt/etc/fstab
-	print_info "fstab saved."
-else
-	print_info "You can edit the fstab manually after installation."
-	exit 1
-fi
-
-# Chroot configuration
-print_section "Configuring System"
-
-# Create a script to run inside the chroot environment
+print_info "Creating chroot setup script..."
 cat >/mnt/root/chroot_setup.sh <<'EOL'
 #!/bin/bash
 
-# Colors for output
+# Colors for output formatting
+RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
 NC='\033[0m' # No Color
 
-# Function to print info messages
+# Function to print section headers
+print_section() {
+    echo -e "\n${BLUE}${BOLD}=== $1 ===${NC}\n"
+}
+
+# Function to print information
 print_info() {
     echo -e "${GREEN}INFO:${NC} $1"
 }
 
-# Configure mkinitcpio
-print_info "Configuring mkinitcpio..."
-sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block encrypt lvm2 filesystems fsck usr)/' /etc/mkinitcpio.conf
+# Function to print warnings
+print_warning() {
+    echo -e "${YELLOW}WARNING:${NC} $1"
+}
+
+# Function to print errors
+print_error() {
+    echo -e "${RED}ERROR:${NC} $1"
+}
+
+# Function to get user confirmation
+confirm() {
+    local prompt="$1"
+    local response
+
+    while true; do
+        read -p "$prompt [y/n]: " response
+        case $response in
+        [Yy]*) return 0 ;;
+        [Nn]*) return 1 ;;
+        *) echo "Please enter y or n." ;;
+        esac
+    done
+}
+
+# Update pacman
+print_info "Updating pacman keyring..."
+pacman -Sy archlinux-keyring --noconfirm
+pacman -Su --noconfirm
+
+# Create swapfile
+print_info "Creating swapfile..."
+dd if=/dev/zero of=/swapfile bs=1M count=2048 status=progress
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+echo "/swapfile none swap defaults 0 0" >> /etc/fstab
+
+# Configure mkinitcpio with encryption support
+print_info "Configuring mkinitcpio for encryption..."
+sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect keyboard keymap modconf block encrypt lvm2 filesystems fsck usr)/' /etc/mkinitcpio.conf
 mkinitcpio -P
 
 # Set timezone
@@ -274,7 +269,7 @@ date
 print_info "Configuring locale..."
 echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
 locale-gen
-echo "LANG=en_EN.UTF-8" > /etc/locale.conf
+echo "LANG=en_US.UTF-8" > /etc/locale.conf
 
 # Set hostname
 read -p "Enter hostname for this system: " hostname
@@ -293,7 +288,14 @@ passwd "$username"
 # Configure sudo
 print_info "Configuring sudo..."
 sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
+echo "Defaults logfile=/var/log/sudo.log" >> /etc/sudoers.d/logging
+chmod 440 /etc/sudoers.d/logging
 echo "$username ALL=(ALL:ALL) ALL" >> /etc/sudoers.d/$username
+
+# Disable root login
+print_info "Disabling root login..."
+sed -i 's|^root:.*:|root:x:0:0:root:/root:/usr/sbin/nologin|' /etc/passwd
+passwd -l root
 
 # Configure GRUB
 print_info "Installing GRUB bootloader..."
@@ -309,15 +311,257 @@ sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=3 
 # Generate GRUB config
 grub-mkconfig -o /boot/grub/grub.cfg
 
+# Configure secure fstab options
+print_info "Enhancing filesystem security in fstab..."
+echo "# Process hiding for /proc" >> /etc/fstab
+echo "proc           /proc            proc            hidepid=2       0 0" >> /etc/fstab
+echo "# Secure /tmp mount" >> /etc/fstab
+echo "tmpfs          /tmp             tmpfs           nosuid,nodev,noexec 0 0" >> /etc/fstab
+
 # Enable NetworkManager
 print_info "Enabling NetworkManager..."
 systemctl enable NetworkManager
 
-# Configure sudo logging
-print_info "Configuring sudo logging..."
-echo "Defaults logfile=/var/log/sudo.log" >> /etc/sudoers.d/logging
+# Kernel hardening via sysctl
+print_section "Configuring Kernel Hardening"
 
-# Final message
+# Network security
+print_info "Setting up network security parameters..."
+cat > /etc/sysctl.d/90-network-security.conf << 'EOF'
+# Reverse Path Filtering (Prevent Spoofing Attacks)
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+# Block SYN attacks
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_max_syn_backlog = 4096
+net.ipv4.tcp_synack_retries = 3
+# Ignore ICMP redirects
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv6.conf.default.accept_redirects = 0
+net.ipv4.conf.all.secure_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+# Disable Source Packet Routing
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv6.conf.all.accept_source_route = 0 
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv6.conf.default.accept_source_route = 0
+# Disable Packet Forwarding (unless server is functioning as router or VPN)
+net.ipv4.ip_forward = 0
+net.ipv4.conf.all.forwarding = 0
+net.ipv6.conf.all.forwarding = 0
+net.ipv4.conf.default.forwarding = 0
+net.ipv6.conf.default.forwarding = 0
+# Protect TCP Connections (TIME-WAIT State)
+net.ipv4.tcp_rfc1337 = 1
+# Additional UFW compatible settings
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.icmp_ignore_bogus_error_responses = 1
+net.ipv4.icmp_echo_ignore_all = 0
+net.ipv4.conf.all.log_martians = 0
+net.ipv4.conf.default.log_martians = 0
+EOF
+
+# Kernel hardening
+print_info "Setting up kernel hardening parameters..."
+cat > /etc/sysctl.d/91-kernel-hardening.conf << 'EOF'
+# Harden the BPF JIT Compiler
+net.core.bpf_jit_harden = 2
+kernel.unprivileged_bpf_disabled = 1 
+# Disable Magic Keys
+kernel.sysrq = 0
+# Restrict Access to Kernel Logs
+kernel.dmesg_restrict = 1
+# Restrict ptrace Access
+kernel.yama.ptrace_scope = 3
+# Restrict User Namespaces
+kernel.unprivileged_userns_clone = 0
+# Address Space Layout Randomization (ASLR)
+kernel.randomize_va_space = 2
+# Additional kernel hardening 
+kernel.kexec_load_disabled = 1
+kernel.perf_event_paranoid = 3
+EOF
+
+# Filesystem and memory protection
+print_info "Setting up filesystem and memory protection parameters..."
+cat > /etc/sysctl.d/92-fs-memory-protection.conf << 'EOF'
+# Restrict Core Dumps
+kernel.core_pattern = |/bin/false
+fs.suid_dumpable = 0
+# File Creation Restrictions
+fs.protected_regular = 2
+fs.protected_fifos = 2
+fs.protected_hardlinks = 1
+fs.protected_symlinks = 1
+# Control Swapping
+vm.swappiness = 1
+EOF
+
+# Apply sysctl changes
+print_info "Applying sysctl changes..."
+sysctl --system
+
+# Configure SSH with hardened security
+print_section "SSH Configuration"
+if confirm "Would you like to set up SSH with hardened security?"; then
+    # Install required packages
+    print_info "Installing SSH and 2FA packages..."
+    pacman -S --noconfirm openssh libpam-google-authenticator qrencode
+    
+    # Enable SSH service
+    systemctl enable sshd
+    
+    # Configure custom SSH port
+    read -p "Enter a custom SSH port (recommended: use a port between 1024-65535): " ssh_port
+    
+    # Default to 22 if no port specified
+    if [ -z "$ssh_port" ]; then
+        ssh_port=22
+        print_warning "Using default SSH port 22 (not recommended for security)"
+    fi
+    
+    # Configure SSH
+    print_info "Configuring SSH with enhanced security..."
+    
+    # Backup original config
+    cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+    
+    # Update SSH configuration with security settings
+    sed -i "s/^#Port .*/Port $ssh_port/" /etc/ssh/sshd_config
+    sed -i 's/^#PermitRootLogin .*/PermitRootLogin no/' /etc/ssh/sshd_config
+    sed -i 's/^#LoginGraceTime .*/LoginGraceTime 20/' /etc/ssh/sshd_config
+    sed -i 's/^#MaxAuthTries .*/MaxAuthTries 3/' /etc/ssh/sshd_config
+    sed -i 's/^#MaxSessions .*/MaxSessions 5/' /etc/ssh/sshd_config
+    sed -i 's/^#ClientAliveInterval .*/ClientAliveInterval 60/' /etc/ssh/sshd_config
+    sed -i 's/^#ClientAliveCountMax .*/ClientAliveCountMax 3/' /etc/ssh/sshd_config
+    sed -i 's/^X11Forwarding .*/X11Forwarding no/' /etc/ssh/sshd_config
+    sed -i 's/^#AllowAgentForwarding .*/AllowAgentForwarding no/' /etc/ssh/sshd_config
+    sed -i 's/^#AllowTcpForwarding .*/AllowTcpForwarding no/' /etc/ssh/sshd_config
+    sed -i 's/^#PasswordAuthentication .*/PasswordAuthentication no/' /etc/ssh/sshd_config
+    sed -i 's/^#KbdInteractiveAuthentication .*/KbdInteractiveAuthentication yes/' /etc/ssh/sshd_config
+    sed -i 's/^#UsePAM .*/UsePAM yes/' /etc/ssh/sshd_config
+    sed -i 's/^#ChallengeResponseAuthentication .*/ChallengeResponseAuthentication yes/' /etc/ssh/sshd_config
+    
+    # Add Authentication Methods
+    if ! grep -q "AuthenticationMethods" /etc/ssh/sshd_config; then
+        echo "AuthenticationMethods publickey,keyboard-interactive" >> /etc/ssh/sshd_config
+    else
+        sed -i 's/^#AuthenticationMethods .*/AuthenticationMethods publickey,keyboard-interactive/' /etc/ssh/sshd_config
+    fi
+    
+    # Comment out content in the Arch-specific config
+    if [ -f "/etc/ssh/sshd_config.d/99-archlinux.conf" ]; then
+        sed -i 's/^/#/' /etc/ssh/sshd_config.d/99-archlinux.conf
+    fi
+    
+    # Generate SSH key for the user
+    print_info "Generating SSH key for '$username'..."
+    mkdir -p /home/$username/.ssh
+    chmod 700 /home/$username/.ssh
+    su - $username -c "ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N \"\""
+    cat /home/$username/.ssh/id_rsa.pub >> /home/$username/.ssh/authorized_keys
+    chmod 600 /home/$username/.ssh/authorized_keys
+    chown -R $username:$username /home/$username/.ssh
+    
+    # Configure AuthorizedKeysFile
+    sed -i 's/^#AuthorizedKeysFile .*/AuthorizedKeysFile .ssh\/authorized_keys/' /etc/ssh/sshd_config
+    
+    # Configure Google Authenticator for 2FA
+    if confirm "Would you like to set up Google Authenticator 2FA for SSH?"; then
+        print_info "Setting up Google Authenticator..."
+        
+        # Configure PAM
+        echo "auth required pam_google_authenticator.so" >> /etc/pam.d/sshd
+        
+        # Run google-authenticator setup for the user
+        print_info "Setting up Google Authenticator for '$username'..."
+        su - $username -c "google-authenticator"
+        
+        print_info "Google Authenticator setup complete!"
+    fi
+    
+    print_info "SSH configuration complete. Use 'ssh -p $ssh_port $username@hostname' to connect."
+fi
+
+# Configure UFW Firewall
+print_section "Firewall Configuration"
+if confirm "Would you like to set up UFW firewall?"; then
+    print_info "Installing and configuring UFW firewall..."
+    pacman -S --noconfirm ufw
+    
+    # Configure UFW to use our sysctl settings
+    sed -i 's|^IPT_SYSCTL=.*|IPT_SYSCTL=/etc/sysctl.conf|' /etc/default/ufw
+    
+    # If SSH was configured, allow the chosen port
+    if [ -n "$ssh_port" ]; then
+        ufw allow "$ssh_port/tcp"
+        ufw limit "$ssh_port"
+        print_info "Added UFW rule for SSH on port $ssh_port"
+    fi
+    
+    # Configure additional security rules in UFW
+    print_info "Adding additional security rules to UFW..."
+    
+    # Add rules to block invalid packets
+    cat >> /etc/ufw/before.rules << 'EOF'
+
+# Block invalid packets
+-A ufw-before-input -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j ufw-logging-deny
+-A ufw-before-input -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j DROP
+EOF
+
+    # Add similar rules for IPv6
+    cat >> /etc/ufw/before6.rules << 'EOF'
+
+# Block invalid packets
+-A ufw6-before-input -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j ufw6-logging-deny
+-A ufw6-before-input -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j DROP
+EOF
+
+    # Enable UFW
+    print_info "Enabling UFW..."
+    ufw --force enable
+    systemctl enable ufw
+    
+    print_info "UFW configuration complete!"
+fi
+
+# Configure Fail2Ban
+print_section "Intrusion Prevention"
+if confirm "Would you like to set up Fail2Ban for intrusion prevention?"; then
+    print_info "Installing and configuring Fail2Ban..."
+    pacman -S --noconfirm fail2ban
+    
+    # Create copies of the configuration files
+    cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+    cp /etc/fail2ban/fail2ban.conf /etc/fail2ban/fail2ban.local
+    
+    # Configure jail.local
+    sed -i 's/^maxretry = .*/maxretry = 2/' /etc/fail2ban/jail.local
+    sed -i 's/^bantime = .*/bantime = 30m/' /etc/fail2ban/jail.local
+    sed -i 's/^findtime = .*/findtime = 30m/' /etc/fail2ban/jail.local
+    
+    # Configure SSH jail if SSH was set up
+    if [ -n "$ssh_port" ]; then
+        mkdir -p /etc/fail2ban/jail.d
+        cat > /etc/fail2ban/jail.d/sshd.local << EOF
+[sshd]
+enabled = true
+port = $ssh_port
+logpath = %(sshd_log)s
+backend = %(sshd_backend)s
+EOF
+    fi
+    
+    # Enable Fail2Ban
+    systemctl enable fail2ban
+    
+    print_info "Fail2Ban configuration complete!"
+fi
+
 print_info "Chroot setup complete!"
 EOL
 
