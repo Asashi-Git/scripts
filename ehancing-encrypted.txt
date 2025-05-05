@@ -1,0 +1,103 @@
+1. Add Timezone Selection:
+
+# In the chroot_setup.sh section, replace the timezone setting with:
+print_info "Setting timezone..."
+# List available regions
+echo "Available regions:"
+ls -1 /usr/share/zoneinfo | grep -v posix | grep -v right
+read -p "Enter your region: " region
+
+if [ -d "/usr/share/zoneinfo/$region" ]; then
+    echo "Cities in $region:"
+    ls -1 /usr/share/zoneinfo/$region
+    read -p "Enter your city: " city
+    
+    if [ -f "/usr/share/zoneinfo/$region/$city" ]; then
+        ln -sf /usr/share/zoneinfo/$region/$city /etc/localtime
+        echo "Timezone set to $region/$city"
+    else
+        echo "Invalid city. Setting default timezone (UTC)."
+        ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+    fi
+else
+    echo "Invalid region. Setting default timezone (UTC)."
+    ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+fi
+
+hwclock --systohc
+
+2. Add Language Selection
+
+# In the chroot_setup.sh section, replace the locale setting with:
+print_info "Configuring locale..."
+echo "Available locales (abbreviated list):"
+echo "1) en_US.UTF-8 - English (US)"
+echo "2) fr_FR.UTF-8 - French"
+echo "3) de_DE.UTF-8 - German"
+echo "4) es_ES.UTF-8 - Spanish"
+echo "5) it_IT.UTF-8 - Italian"
+echo "6) ja_JP.UTF-8 - Japanese"
+echo "7) Other (specify manually)"
+
+read -p "Select your preferred locale [1-7]: " locale_choice
+
+case $locale_choice in
+    1) locale="en_US.UTF-8" ;;
+    2) locale="fr_FR.UTF-8" ;;
+    3) locale="de_DE.UTF-8" ;;
+    4) locale="es_ES.UTF-8" ;;
+    5) locale="it_IT.UTF-8" ;;
+    6) locale="ja_JP.UTF-8" ;;
+    7) 
+        read -p "Enter locale (format: xx_XX.UTF-8): " locale
+        ;;
+    *) 
+        echo "Invalid choice. Defaulting to en_US.UTF-8"
+        locale="en_US.UTF-8"
+        ;;
+esac
+
+echo "$locale UTF-8" > /etc/locale.gen
+locale-gen
+echo "LANG=$locale" > /etc/locale.conf
+
+3. Desktop Environment Option
+
+print_section "Desktop Environment"
+echo "Would you like to install a desktop environment?"
+echo "1) None (console only)"
+echo "2) GNOME"
+echo "3) KDE Plasma"
+echo "4) Xfce"
+echo "5) MATE"
+echo "6) i3 (minimal window manager)"
+
+read -p "Select a desktop environment [1-6]: " de_choice
+
+case $de_choice in
+    1) de_packages="" ;;
+    2) de_packages="gnome gnome-extra gdm" 
+       de_service="gdm" ;;
+    3) de_packages="plasma kde-applications sddm" 
+       de_service="sddm" ;;
+    4) de_packages="xfce4 xfce4-goodies lightdm lightdm-gtk-greeter" 
+       de_service="lightdm" ;;
+    5) de_packages="mate mate-extra lightdm lightdm-gtk-greeter" 
+       de_service="lightdm" ;;
+    6) de_packages="i3-wm i3status i3lock dmenu lightdm lightdm-gtk-greeter xorg-server xorg-xinit" 
+       de_service="lightdm" ;;
+    *) de_packages=""
+       de_service="" ;;
+esac
+
+if [ -n "$de_packages" ]; then
+    print_info "Installing desktop environment: $de_packages"
+    pacstrap /mnt $de_packages
+    
+    # Add configuration to chroot_setup.sh to enable display manager
+    if [ -n "$de_service" ]; then
+        echo "# Enable display manager" >> /mnt/root/chroot_setup.sh
+        echo "systemctl enable $de_service" >> /mnt/root/chroot_setup.sh
+    fi
+fi
+
