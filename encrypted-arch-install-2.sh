@@ -58,9 +58,9 @@ check_success() {
 
 # Welcome message
 clear
-echo -e "${BOLD}======================================================${NC}"
-echo -e "${BOLD}    Arch Linux Installation Script with Hardening     ${NC}"
-echo -e "${BOLD}======================================================${NC}"
+echo -e "${BOLD}==========================================================================${NC}"
+echo -e "${BOLD}    Arch Linux Installation Script with Hardening By Samuel Decarnelle    ${NC}"
+echo -e "${BOLD}==========================================================================${NC}"
 echo
 print_info "This script will guide you through installing Arch Linux with encryption and security hardening."
 print_warning "This script will erase all data on the target disk. Make sure you have backups!"
