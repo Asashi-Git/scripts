@@ -33,11 +33,12 @@ fi
 
 # Step 2: Lock the root password in /etc/shadow
 echo "Locking root password in /etc/shadow..."
-# This adds a '!' at the beginning of the password field to lock it
-sed -i 's/^root:$ [^:]* $ :/root:!\1:/' /etc/shadow
+
+# Instead of using complex sed, let's use the passwd command
+passwd -l root
 
 # Verify the lock
-if grep "^root:!" /etc/shadow >/dev/null; then
+if passwd -S root | grep -q "Password locked"; then
 	echo "Root password successfully locked."
 else
 	echo "Failed to lock root password. Check /etc/shadow manually."
