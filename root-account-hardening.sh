@@ -33,8 +33,7 @@ fi
 
 # Step 2: Lock the root password in /etc/shadow
 echo "Locking root password in /etc/shadow..."
-# This correctly handles the format where we need to add '!' at the second field
-# between the first and second colon
+# This adds a '!' at the beginning of the password field to lock it
 sed -i 's/^root:$ [^:]* $ :/root:!\1:/' /etc/shadow
 
 # Verify the lock
