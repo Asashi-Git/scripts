@@ -3,7 +3,7 @@
 # Root User Hardening Script for Arch Linux
 # This script disables direct root login by:
 # 1. Changing the root shell to /usr/sbin/nologin
-# 2. Locking the root password in /etc/shadow by adding '!' at the beginning
+# 2. Locking the root password in /etc/shadow by adding '!' before the hash
 
 # Check if running with sudo/root privileges
 if [ "$EUID" -ne 0 ]; then
@@ -31,24 +31,23 @@ else
 	exit 1
 fi
 
-# Lock root password in /etc/shadow by adding '!' to the password field
-# This preserves the original hash and only adds ! at the beginning
+# Lock root password in /etc/shadow by adding '!' before the hash value
 echo "[*] Locking root password in /etc/shadow..."
 
 # Extract the current root line from /etc/shadow
-SHADOW_LINE=$(grep "^root:" /etc/shadow)
+ROOT_LINE=$(grep "^root:" /etc/shadow)
 
-# Check if the password is already locked (starts with !)
-if [[ $SHADOW_LINE == root:\!:* ]]; then
+# Check if root password is already locked
+if [[ "$ROOT_LINE" == root:\!* ]]; then
 	echo "[*] Root password is already locked."
 else
-	# Replace the second field (password field) with '!' at the beginning
-	# This changes root:hash:... to root:!:...
-	sed -i 's/^root:$ [^:]* $ :/root:!:/' /etc/shadow
+	# Add a '!' at the beginning of the password field while preserving the original hash
+	# This changes root:$hash:... to root:!$hash:...
+	sed -i 's/^root:$ [^!] $ /root:!\1/' /etc/shadow
 
 	# Verify the change
-	if grep -q "^root:!:" /etc/shadow; then
-		echo "[+] Successfully locked root password by adding '!' in the password field"
+	if grep -q "^root:!" /etc/shadow; then
+		echo "[+] Successfully locked root password by adding '!' before the hash"
 	else
 		echo "[-] Failed to lock root password."
 		echo "    Please check /etc/shadow manually."
