@@ -14,6 +14,31 @@ handle_error() {
 
 echo "========== Creating and Setting Up Encrypted HTTP Partition =========="
 
+# Ask for the username
+echo -n "Enter the username for which to configure the auto-mount prompt (e.g., localadm): "
+read username
+
+# Validate that the user exists
+if ! id "$username" &>/dev/null; then
+  echo "User '$username' does not exist. Would you like to create this user? (y/n)"
+  read create_user
+  if [[ "$create_user" =~ ^[Yy]$ ]]; then
+    useradd -m "$username" || handle_error "Failed to create user"
+    echo "Setting password for new user '$username'"
+    passwd "$username" || handle_error "Failed to set password"
+  else
+    handle_error "User does not exist. Please specify a valid username."
+  fi
+fi
+
+# Get the home directory of the user
+user_home=$(eval echo ~$username)
+if [ ! -d "$user_home" ]; then
+  handle_error "Home directory for user '$username' not found"
+fi
+
+echo "Using home directory: $user_home"
+
 # Step 1: Create the logical volume
 echo "[1/10] Creating logical volume 'httpdata'..."
 lvcreate -L 5G vg0 -n httpdata || handle_error "Failed to create logical volume"
@@ -64,7 +89,7 @@ if cryptsetup open /dev/vg0/httpdata crypthttp; then
     echo "HTTP data partition mounted successfully."
     
     # Set proper ownership and permissions
-    chown localadm:http /data/http #Here we use http group for nginx on arch linux
+    chown USERNAME:http /data/http #Here we use http group for nginx on arch linux
     chmod 750 /data/http
     
     # Restart web server if needed
@@ -75,12 +100,15 @@ else
 fi
 EOF
 
+# Replace USERNAME placeholder with the actual username
+sed -i "s/USERNAME/$username/g" /usr/local/bin/mount-httpdata.sh
+
 chmod +x /usr/local/bin/mount-httpdata.sh || handle_error "Failed to make script executable"
 
 # Step 8: Update user profile to prompt for mounting
-echo "[8/10] Setting up autostart for localadm user..."
-if [ -f /home/localadm/.bash_profile ]; then
-  grep -q "mount-httpdata.sh" /home/localadm/.bash_profile || cat >>/home/localadm/.bash_profile <<'EOF'
+echo "[8/10] Setting up autostart for user $username..."
+if [ -f "$user_home/.bash_profile" ]; then
+  grep -q "mount-httpdata.sh" "$user_home/.bash_profile" || cat >>"$user_home/.bash_profile" <<'EOF'
 
 # Check if HTTP partition is mounted
 if ! mountpoint -q /data/http; then
@@ -92,7 +120,7 @@ if ! mountpoint -q /data/http; then
 fi
 EOF
 else
-  cat >/home/localadm/.bash_profile <<'EOF'
+  cat >"$user_home/.bash_profile" <<'EOF'
 # Check if HTTP partition is mounted
 if ! mountpoint -q /data/http; then
     echo "HTTP data partition is not mounted."
@@ -104,7 +132,7 @@ fi
 EOF
 fi
 
-chown localadm:localadm /home/localadm/.bash_profile || handle_error "Failed to set ownership for bash_profile"
+chown $username:$username "$user_home/.bash_profile" || handle_error "Failed to set ownership for bash_profile"
 
 # Step 9: Install and configure Nginx
 echo "[9/10] Installing and configuring Nginx..."
@@ -114,8 +142,8 @@ pacman -S --noconfirm nginx git || handle_error "Failed to install required pack
 # Create http group if it doesn't exist
 groupadd -f http
 
-# Ensure localadm user is in the http group
-usermod -a -G http localadm
+# Ensure user is in the http group
+usermod -a -G http $username
 
 # Download maintenance page
 mkdir -p /usr/share/nginx/html
@@ -306,18 +334,24 @@ fi
 popd >/dev/null
 
 # Set proper permissions
-chown -R localadm:http /data/http
+chown -R $username:http /data/http
 chmod -R 750 /data/http
 
 # Enable and start Nginx
 systemctl enable nginx
 systemctl restart nginx
 
+# Configure sudo permissions for mount script
+if ! grep -q "mount-httpdata.sh" /etc/sudoers.d/*; then
+  echo "$username ALL=(ALL) NOPASSWD: /usr/local/bin/mount-httpdata.sh" >"/etc/sudoers.d/$username" || handle_error "Failed to update sudoers"
+  chmod 440 "/etc/sudoers.d/$username"
+fi
+
 # Final message
 echo ""
 echo "========== Setup Complete =========="
 echo "Encrypted HTTP partition has been created and configured."
-echo "When localadm logs in, they will be prompted to mount the encrypted partition."
+echo "When user '$username' logs in, they will be prompted to mount the encrypted partition."
 echo "To manually mount the partition, run: sudo /usr/local/bin/mount-httpdata.sh"
 echo ""
 echo "Nginx has been configured to serve content from /data/http/encrypted-arch-linux"
