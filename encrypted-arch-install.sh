@@ -58,9 +58,32 @@ check_success() {
 
 # Welcome message
 clear
-echo -e "${BOLD}======================================================${NC}"
-echo -e "${BOLD}    Arch Linux Installation Script with Hardening     ${NC}"
-echo -e "${BOLD}======================================================${NC}"
+echo
+echo -e "${BRIGHT_BLUE}${BOLD} █████╗ ██████╗  ██████╗██╗  ██╗    ██╗     ██╗███╗   ██╗██╗   ██╗██╗  ██╗${NC}"
+echo -e "${BRIGHT_BLUE}${BOLD}██╔══██╗██╔══██╗██╔════╝██║  ██║    ██║     ██║████╗  ██║██║   ██║╚██╗██╔╝${NC}"
+echo -e "${BRIGHT_BLUE}${BOLD}███████║██████╔╝██║     ███████║    ██║     ██║██╔██╗ ██║██║   ██║ ╚███╔╝ ${NC}"
+echo -e "${BRIGHT_BLUE}${BOLD}██╔══██║██╔══██╗██║     ██╔══██║    ██║     ██║██║╚██╗██║██║   ██║ ██╔██╗ ${NC}"
+echo -e "${BRIGHT_BLUE}${BOLD}██║  ██║██║  ██║╚██████╗██║  ██║    ███████╗██║██║ ╚████║╚██████╔╝██╔╝ ██╗${NC}"
+echo -e "${BRIGHT_BLUE}${BOLD}╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝    ╚══════╝╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝${NC}"
+echo
+cat <<"EOF"
+                                                                                                                 
+    ██████╗ ██╗   ██╗    ██████╗ ███████╗ ██████╗ █████╗ ██████╗ ███╗   ██╗███████╗██╗     ██╗     ███████╗    
+    ██╔══██╗╚██╗ ██╔╝    ██╔══██╗██╔════╝██╔════╝██╔══██╗██╔══██╗████╗  ██║██╔════╝██║     ██║     ██╔════╝    
+    ██████╔╝ ╚████╔╝     ██║  ██║█████╗  ██║     ███████║██████╔╝██╔██╗ ██║█████╗  ██║     ██║     █████╗      
+    ██╔══██╗  ╚██╔╝      ██║  ██║██╔══╝  ██║     ██╔══██║██╔══██╗██║╚██╗██║██╔══╝  ██║     ██║     ██╔══╝      
+    ██████╔╝   ██║       ██████╔╝███████╗╚██████╗██║  ██║██║  ██║██║ ╚████║███████╗███████╗███████╗███████╗    
+    ╚═════╝    ╚═╝       ╚═════╝ ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝╚══════╝╚══════╝    
+                                                                                                                 
+    ███████╗ █████╗ ███╗   ███╗██╗   ██╗███████╗██╗                                                              
+    ██╔════╝██╔══██╗████╗ ████║██║   ██║██╔════╝██║                                                              
+    ███████╗███████║██╔████╔██║██║   ██║█████╗  ██║                                                              
+    ╚════██║██╔══██║██║╚██╔╝██║██║   ██║██╔══╝  ██║                                                              
+    ███████║██║  ██║██║ ╚═╝ ██║╚██████╔╝███████╗███████╗                                                         
+    ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚══════╝                                                         
+                                                                                                                 
+EOF
+
 echo
 print_info "This script will guide you through installing Arch Linux with encryption and security hardening."
 print_warning "This script will erase all data on the target disk. Make sure you have backups!"
@@ -71,6 +94,40 @@ if ! confirm "Do you want to continue?"; then
 	echo "Installation aborted by user."
 	exit 0
 fi
+
+# Keyboard layout selection
+print_section "Keyboard Layout Configuration"
+echo "Available keyboard layouts:"
+echo "1) us - US English (default)"
+echo "2) uk - United Kingdom"
+echo "3) de - German"
+echo "4) fr - French"
+echo "5) es - Spanish"
+echo "6) it - Italian"
+echo "7) Other (specify manually)"
+
+read -p "Select your keyboard layout [1-7]: " kb_choice
+
+case $kb_choice in
+1) kb_layout="us" ;;
+2) kb_layout="uk" ;;
+3) kb_layout="de" ;;
+4) kb_layout="fr" ;;
+5) kb_layout="es" ;;
+6) kb_layout="it" ;;
+7)
+	# List available layouts
+	localectl list-keymaps | grep -v ".gz"
+	read -p "Enter keyboard layout from the list above: " kb_layout
+	;;
+*)
+	echo "Invalid choice. Defaulting to US layout."
+	kb_layout="us"
+	;;
+esac
+
+print_info "Setting keyboard layout to ${kb_layout}..."
+loadkeys $kb_layout
 
 # Display available disks
 print_section "Storage Configuration"
@@ -218,6 +275,51 @@ print_section "Installing Base System"
 read -p "Enter additional packages to install (space-separated): " additional_packages
 base_packages="base base-devel nano vim networkmanager lvm2 cryptsetup grub efibootmgr linux linux-firmware sof-firmware $additional_packages"
 
+# Desktop Environment Selection
+print_section "Desktop Environment"
+echo "Would you like to install a desktop environment?"
+echo "1) None (console only)"
+echo "2) GNOME"
+echo "3) KDE Plasma"
+echo "4) Xfce"
+echo "5) MATE"
+echo "6) i3 (minimal window manager)"
+
+read -p "Select a desktop environment [1-6]: " de_choice
+
+case $de_choice in
+1) de_packages="" ;;
+2)
+	de_packages="gnome gnome-extra gdm"
+	de_service="gdm"
+	;;
+3)
+	de_packages="plasma kde-applications sddm"
+	de_service="sddm"
+	;;
+4)
+	de_packages="xfce4 xfce4-goodies lightdm lightdm-gtk-greeter"
+	de_service="lightdm"
+	;;
+5)
+	de_packages="mate mate-extra lightdm lightdm-gtk-greeter"
+	de_service="lightdm"
+	;;
+6)
+	de_packages="i3-wm i3status i3lock dmenu lightdm lightdm-gtk-greeter xorg-server xorg-xinit"
+	de_service="lightdm"
+	;;
+*)
+	de_packages=""
+	de_service=""
+	;;
+esac
+
+if [ -n "$de_packages" ]; then
+	print_info "Adding desktop environment packages: $de_packages"
+	base_packages="$base_packages $de_packages"
+fi
+
 print_info "Installing base packages: $base_packages"
 pacstrap /mnt $base_packages
 
@@ -246,8 +348,15 @@ fi
 print_section "Configuring System"
 
 # Create a script to run inside the chroot environment
-cat >/mnt/root/chroot_setup.sh <<'EOL'
+# Pass the disk variable and keyboard layout to the chroot
+cat >/mnt/root/chroot_setup.sh <<EOF
 #!/bin/bash
+
+# Pass the variables to the chroot
+disk="${disk}"
+disk_path="/dev/\${disk}"
+de_service="${de_service}"
+kb_layout="${kb_layout}"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -256,29 +365,80 @@ NC='\033[0m' # No Color
 
 # Function to print info messages
 print_info() {
-    echo -e "${GREEN}INFO:${NC} $1"
+    echo -e "\${GREEN}INFO:\${NC} \$1"
 }
+
+# Configure keyboard layout
+print_info "Setting system keyboard layout to \${kb_layout}..."
+echo "KEYMAP=\${kb_layout}" > /etc/vconsole.conf
 
 # Configure mkinitcpio
 print_info "Configuring mkinitcpio..."
 sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block encrypt lvm2 filesystems fsck usr)/' /etc/mkinitcpio.conf
 mkinitcpio -P
 
-# Set timezone
-print_info "Setting timezone to Europe/Paris..."
-ln -sf /usr/share/zoneinfo/Europe/Paris /etc/localtime
-hwclock --systohc
-date
+# Timezone selection
+print_info "Setting timezone..."
+# List available regions
+echo "Available regions:"
+ls -1 /usr/share/zoneinfo | grep -v posix | grep -v right
+read -p "Enter your region: " region
 
-# Configure locale
+if [ -d "/usr/share/zoneinfo/\$region" ]; then
+    echo "Cities in \$region:"
+    ls -1 /usr/share/zoneinfo/\$region
+    read -p "Enter your city: " city
+    
+    if [ -f "/usr/share/zoneinfo/\$region/\$city" ]; then
+        ln -sf /usr/share/zoneinfo/\$region/\$city /etc/localtime
+        echo "Timezone set to \$region/\$city"
+    else
+        echo "Invalid city. Setting default timezone (UTC)."
+        ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+    fi
+else
+    echo "Invalid region. Setting default timezone (UTC)."
+    ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+fi
+
+hwclock --systohc
+
+# Language selection
 print_info "Configuring locale..."
-echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
+echo "Available locales (abbreviated list):"
+echo "1) en_US.UTF-8 - English (US)"
+echo "2) fr_FR.UTF-8 - French"
+echo "3) de_DE.UTF-8 - German"
+echo "4) es_ES.UTF-8 - Spanish"
+echo "5) it_IT.UTF-8 - Italian"
+echo "6) ja_JP.UTF-8 - Japanese"
+echo "7) Other (specify manually)"
+
+read -p "Select your preferred locale [1-7]: " locale_choice
+
+case \$locale_choice in
+    1) locale="en_US.UTF-8" ;;
+    2) locale="fr_FR.UTF-8" ;;
+    3) locale="de_DE.UTF-8" ;;
+    4) locale="es_ES.UTF-8" ;;
+    5) locale="it_IT.UTF-8" ;;
+    6) locale="ja_JP.UTF-8" ;;
+    7) 
+        read -p "Enter locale (format: xx_XX.UTF-8): " locale
+        ;;
+    *) 
+        echo "Invalid choice. Defaulting to en_US.UTF-8"
+        locale="en_US.UTF-8"
+        ;;
+esac
+
+echo "\$locale UTF-8" > /etc/locale.gen
 locale-gen
-echo "LANG=en_EN.UTF-8" > /etc/locale.conf
+echo "LANG=\$locale" > /etc/locale.conf
 
 # Set hostname
 read -p "Enter hostname for this system: " hostname
-echo "$hostname" > /etc/hostname
+echo "\$hostname" > /etc/hostname
 
 # Set root password
 print_info "Setting root password..."
@@ -286,25 +446,29 @@ passwd
 
 # Create user
 read -p "Enter username for new user: " username
-useradd -m -G wheel -s /bin/bash "$username"
-print_info "Setting password for $username..."
-passwd "$username"
+useradd -m -G wheel -s /bin/bash "\$username"
+print_info "Setting password for \$username..."
+passwd "\$username"
 
 # Configure sudo
 print_info "Configuring sudo..."
 sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
-echo "$username ALL=(ALL:ALL) ALL" >> /etc/sudoers.d/$username
+echo "\$username ALL=(ALL:ALL) ALL" >> /etc/sudoers.d/\$username
+
+# Configure sudo logging
+print_info "Configuring sudo logging..."
+echo "Defaults logfile=/var/log/sudo.log" >> /etc/sudoers.d/logging
 
 # Configure GRUB
 print_info "Installing GRUB bootloader..."
 grub-install --efi-directory=/boot --bootloader-id=GRUB
 
-# Get UUID for encrypted device
-encrypted_uuid=$(blkid -o value -s UUID /dev/vda2)
-print_info "Found encrypted device UUID: $encrypted_uuid"
+# Get UUID for encrypted device - now using the dynamic disk path
+encrypted_uuid=\$(blkid -o value -s UUID \${disk_path}2)
+print_info "Found encrypted device UUID: \${encrypted_uuid}"
 
 # Configure GRUB for encrypted boot
-sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=3 quiet cryptdevice=UUID=${encrypted_uuid}:cryptlvm root=\/dev\/vg0\/root\"/" /etc/default/grub
+sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=3 quiet cryptdevice=UUID=\${encrypted_uuid}:cryptlvm root=\/dev\/vg0\/root\"/" /etc/default/grub
 
 # Generate GRUB config
 grub-mkconfig -o /boot/grub/grub.cfg
@@ -313,13 +477,15 @@ grub-mkconfig -o /boot/grub/grub.cfg
 print_info "Enabling NetworkManager..."
 systemctl enable NetworkManager
 
-# Configure sudo logging
-print_info "Configuring sudo logging..."
-echo "Defaults logfile=/var/log/sudo.log" >> /etc/sudoers.d/logging
+# Enable display manager if a desktop environment was selected
+if [ -n "\$de_service" ]; then
+    print_info "Enabling display manager \$de_service..."
+    systemctl enable \$de_service
+fi
 
 # Final message
 print_info "Chroot setup complete!"
-EOL
+EOF
 
 # Make the script executable
 chmod +x /mnt/root/chroot_setup.sh
@@ -337,6 +503,43 @@ print_info "Unmounting partitions..."
 umount -a
 
 print_section "Installation Complete"
+echo
+cat <<"EOF"
+
+   █████╗ ██████╗  ██████╗██╗  ██╗    ██╗     ██╗███╗   ██╗██╗   ██╗██╗  ██╗
+  ██╔══██╗██╔══██╗██╔════╝██║  ██║    ██║     ██║████╗  ██║██║   ██║╚██╗██╔╝
+  ███████║██████╔╝██║     ███████║    ██║     ██║██╔██╗ ██║██║   ██║ ╚███╔╝ 
+  ██╔══██║██╔══██╗██║     ██╔══██║    ██║     ██║██║╚██╗██║██║   ██║ ██╔██╗ 
+  ██║  ██║██║  ██║╚██████╗██║  ██║    ███████╗██║██║ ╚████║╚██████╔╝██╔╝ ██╗
+  ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝    ╚══════╝╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝
+                                                                            
+    ██╗███╗   ██╗███████╗████████╗ █████╗ ██╗     ██╗     ███████╗██████╗   
+    ██║████╗  ██║██╔════╝╚══██╔══╝██╔══██╗██║     ██║     ██╔════╝██╔══██╗  
+    ██║██╔██╗ ██║███████╗   ██║   ███████║██║     ██║     █████╗  ██████╔╝  
+    ██║██║╚██╗██║╚════██║   ██║   ██╔══██║██║     ██║     ██╔══╝  ██╔══██╗  
+    ██║██║ ╚████║███████║   ██║   ██║  ██║███████╗███████╗███████╗██║  ██║  
+    ╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝  
+
+EOF
+echo
+cat <<"EOF"
+$(tput setaf 5)
+    ██╗███╗   ██╗███████╗████████╗ █████╗ ██╗     ██╗      █████╗ ████████╗██╗ ██████╗ ███╗   ██╗
+    ██║████╗  ██║██╔════╝╚══██╔══╝██╔══██╗██║     ██║     ██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║
+    ██║██╔██╗ ██║███████╗   ██║   ███████║██║     ██║     ███████║   ██║   ██║██║   ██║██╔██╗ ██║
+    ██║██║╚██╗██║╚════██║   ██║   ██╔══██║██║     ██║     ██╔══██║   ██║   ██║██║   ██║██║╚██╗██║
+    ██║██║ ╚████║███████║   ██║   ██║  ██║███████╗███████╗██║  ██║   ██║   ██║╚██████╔╝██║ ╚████║
+    ╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
+                                                                                                  
+     ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗     ███████╗████████╗███████╗    ██╗                 
+    ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██║     ██╔════╝╚══██╔══╝██╔════╝    ██║                 
+    ██║     ██║   ██║██╔████╔██║██████╔╝██║     █████╗     ██║   █████╗      ██║                 
+    ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝      ╚═╝                 
+    ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗    ██╗                 
+     ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝    ╚═╝                 
+$(tput sgr0)
+EOF
+echo
 print_info "Arch Linux has been installed with encryption and hardening."
 print_info "You can now reboot your system and remove the installation media."
 print_info "After reboot, you'll need to enter the disk encryption password."
