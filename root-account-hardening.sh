@@ -3,7 +3,7 @@
 # Root User Hardening Script for Arch Linux
 # This script disables direct root login by:
 # 1. Changing the root shell to /usr/sbin/nologin
-# 2. Locking the root password in /etc/shadow by adding '!' before the hash
+# 2. Replacing the root password hash with '!' in /etc/shadow
 
 # Check if running with sudo/root privileges
 if [ "$EUID" -ne 0 ]; then
@@ -31,28 +31,19 @@ else
 	exit 1
 fi
 
-# Lock root password in /etc/shadow by adding '!' before the hash value
-echo "[*] Locking root password in /etc/shadow..."
+# Replace the root password hash with '!' in /etc/shadow
+echo "[*] Replacing root password hash with '!' in /etc/shadow..."
 
-# Extract the current root line from /etc/shadow
-ROOT_LINE=$(grep "^root:" /etc/shadow)
+# Use sed to replace the second field (between first and second colon) with '!'
+sed -i 's/^root:[^:]*:/root:!:/' /etc/shadow
 
-# Check if root password is already locked
-if [[ "$ROOT_LINE" == root:\!* ]]; then
-	echo "[*] Root password is already locked."
+# Verify the change
+if grep -q "^root:!:" /etc/shadow; then
+	echo "[+] Successfully replaced root password hash with '!'"
 else
-	# Add a '!' at the beginning of the password field while preserving the original hash
-	# This changes root:$hash:... to root:!$hash:...
-	sed -i 's/^root:$ [^!] $ /root:!\1/' /etc/shadow
-
-	# Verify the change
-	if grep -q "^root:!" /etc/shadow; then
-		echo "[+] Successfully locked root password by adding '!' before the hash"
-	else
-		echo "[-] Failed to lock root password."
-		echo "    Please check /etc/shadow manually."
-		exit 1
-	fi
+	echo "[-] Failed to replace root password hash."
+	echo "    Please check /etc/shadow manually."
+	exit 1
 fi
 
 echo "[+] Root account hardening completed successfully!"
