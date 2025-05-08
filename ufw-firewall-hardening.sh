@@ -148,6 +148,10 @@ else
 	check_status "Reloaded UFW rules"
 fi
 
+echo "Enable UFW ..."
+sudo systemctl enable ufw --now
+echo "Enable UFW is Up and Running!"
+
 echo ""
 echo "===== UFW Configuration Complete ====="
 echo "Current UFW Status:"
