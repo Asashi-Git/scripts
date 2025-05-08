@@ -7,9 +7,9 @@ encrypted arch install done
 root account done
 fstab done
 hardening ssh done
+otp done
 kernel done
 fail2ban done
 web server done
 
-otp
 ufw
