@@ -52,33 +52,11 @@ check_and_set_timezone() {
   fi
 }
 
-# Function to get the user for OTP configuration
-get_user_for_otp() {
-  # If the script is run with sudo, default to the sudo user
-  if [[ -n "$SUDO_USER" ]]; then
-    default_user="$SUDO_USER"
-  else
-    default_user="$(whoami)"
-  fi
-
-  read -p "Enter the username for OTP configuration (default: $default_user): " username
-  username=${username:-$default_user}
-
-  # Check if user exists
-  if ! id "$username" &>/dev/null; then
-    echo "User $username does not exist. Exiting."
-    exit 1
-  fi
-
-  echo "OTP will be configured for user: $username"
-  return 0
-}
-
 # Function to install google-authenticator if not installed
 install_google_authenticator() {
-  if ! pacman -Q libpam-google-authenticator &>/dev/null && ! pacman -Q google-authenticator &>/dev/null && ! pacman -Q google-authenticator-libpam &>/dev/null; then
+  if ! pacman -Q libpam-google-authenticator &>/dev/null && ! pacman -Q google-authenticator &>/dev/null; then
     echo "Google Authenticator is not installed. Installing..."
-    pacman -S --noconfirm libpam-google-authenticator || pacman -S --noconfirm google-authenticator || pacman -S --noconfirm google-authenticator-libpam
+    pacman -S --noconfirm libpam-google-authenticator || pacman -S --noconfirm google-authenticator
 
     if [[ $? -ne 0 ]]; then
       echo "Failed to install Google Authenticator. Exiting."
@@ -87,93 +65,24 @@ install_google_authenticator() {
   else
     echo "Google Authenticator is already installed."
   fi
-
-  # Install qrencode if not already installed (for QR code generation)
-  if ! pacman -Q qrencode &>/dev/null; then
-    echo "Installing qrencode for QR code generation..."
-    pacman -S --noconfirm qrencode
-
-    if [[ $? -ne 0 ]]; then
-      echo "Failed to install qrencode. QR code saving might not work."
-    fi
-  fi
-}
-
-# Function to create OTP directory for the user
-create_otp_directory() {
-  local user_home
-  user_home=$(eval echo ~"$username")
-  otp_dir="$user_home/.otp"
-
-  echo "Creating OTP directory at $otp_dir"
-
-  # Create the directory if it doesn't exist
-  if [[ ! -d "$otp_dir" ]]; then
-    mkdir -p "$otp_dir"
-    if [[ $? -ne 0 ]]; then
-      echo "Failed to create OTP directory. Exiting."
-      exit 1
-    fi
-  fi
-
-  # Set proper ownership and permissions
-  chown "$username":"$username" "$otp_dir"
-  chmod 700 "$otp_dir"
-
-  echo "OTP directory created and secured."
 }
 
 # Function to configure Google Authenticator
 configure_google_authenticator() {
-  echo "Configuring Google Authenticator for user $username..."
+  echo "Configuring Google Authenticator..."
   echo "Please follow the instructions to set up your OTP."
   echo "It is recommended to answer 'y' to all questions for secure setup."
   echo "------------------------------------------------------"
 
-  # Create temporary file to capture the output
-  temp_file=$(mktemp)
-
-  # Run Google Authenticator setup for the specified user and capture output
-  su - "$username" -c "script -q -c 'google-authenticator' $temp_file"
+  # Run Google Authenticator setup for the current user
+  sudo -u $SUDO_USER google-authenticator
 
   if [[ $? -ne 0 ]]; then
     echo "Failed to configure Google Authenticator. Exiting."
-    rm -f "$temp_file"
     exit 1
   fi
 
   echo "Google Authenticator configuration completed."
-
-  # Extract the otpauth URL from the temporary file
-  otpauth_url=$(grep -o 'otpauth://[^[:space:]]*' "$temp_file")
-
-  if [[ -n "$otpauth_url" ]]; then
-    # Generate QR code and save it to user's .otp directory
-    qr_code_file="$otp_dir/qr_code.png"
-    echo "Generating QR code and saving to $qr_code_file"
-
-    qrencode -s 8 -o "$qr_code_file" "$otpauth_url"
-
-    if [[ $? -eq 0 ]]; then
-      # Set proper ownership and permissions
-      chown "$username":"$username" "$qr_code_file"
-      chmod 600 "$qr_code_file"
-
-      echo "QR code saved successfully to $qr_code_file"
-
-      # Also save the URL in a text file
-      echo "$otpauth_url" >"$otp_dir/otpauth_url.txt"
-      chown "$username":"$username" "$otp_dir/otpauth_url.txt"
-      chmod 600 "$otp_dir/otpauth_url.txt"
-    else
-      echo "Failed to generate QR code. Please use the secret key manually."
-    fi
-  else
-    echo "Could not extract OTP URL. QR code generation skipped."
-  fi
-
-  # Clean up
-  rm -f "$temp_file"
 }
 
 # Function to modify PAM configuration for SSH
@@ -286,9 +195,7 @@ main() {
 
   check_sudo
   check_and_set_timezone
-  get_user_for_otp
   install_google_authenticator
-  create_otp_directory
   configure_google_authenticator
   configure_pam_sshd
   configure_sshd
@@ -298,7 +205,6 @@ main() {
   echo "OTP configuration completed successfully!"
   echo "Make sure to keep your recovery codes in a safe place."
   echo "You can now log in using your SSH key and OTP token."
-  echo "A QR code for your OTP has been saved to: $qr_code_file"
   echo "======================================"
 }
 
