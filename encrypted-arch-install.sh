@@ -1,34 +1,44 @@
 #!/bin/bash
 
-# Arch Linux Installation Script with Hardening
-# Based on the Arch Linux Manual Install and Hardening documentation
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  Arch Linux Installation Script with Hardening                    ║
+# ║  Based on the Arch Linux Manual Install and Hardening docs        ║
+# ╚═══════════════════════════════════════════════════════════════════╝
 
-# Colors for output formatting
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Colors for output formatting                                     │
+# └─────────────────────────────────────────────────────────────────┘
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+BRIGHT_BLUE='\033[1;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
 
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Utility functions                                                │
+# └─────────────────────────────────────────────────────────────────┘
 # Function to print section headers
 print_section() {
-	echo -e "\n${BLUE}${BOLD}=== $1 ===${NC}\n"
+	echo -e "\n${BLUE}${BOLD}╔════════════ $1 ════════════╗${NC}\n"
 }
 
 # Function to print information
 print_info() {
-	echo -e "${GREEN}INFO:${NC} $1"
+	echo -e "${GREEN}${BOLD}[INFO]${NC} $1"
 }
 
 # Function to print warnings
 print_warning() {
-	echo -e "${YELLOW}WARNING:${NC} $1"
+	echo -e "${YELLOW}${BOLD}[WARNING]${NC} $1"
 }
 
 # Function to print errors
 print_error() {
-	echo -e "${RED}ERROR:${NC} $1"
+	echo -e "${RED}${BOLD}[ERROR]${NC} $1"
 }
 
 # Function to get user confirmation
@@ -37,11 +47,11 @@ confirm() {
 	local response
 
 	while true; do
-		read -p "$prompt [y/n]: " response
+		read -p "${CYAN}${prompt} [y/n]:${NC} " response
 		case $response in
 		[Yy]*) return 0 ;;
 		[Nn]*) return 1 ;;
-		*) echo "Please enter y or n." ;;
+		*) echo -e "${YELLOW}Please enter y or n.${NC}" ;;
 		esac
 	done
 }
@@ -56,7 +66,9 @@ check_success() {
 	fi
 }
 
-# Welcome message
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Welcome message                                                  │
+# └─────────────────────────────────────────────────────────────────┘
 clear
 echo
 echo -e "${BRIGHT_BLUE}${BOLD} █████╗ ██████╗  ██████╗██╗  ██╗    ██╗     ██╗███╗   ██╗██╗   ██╗██╗  ██╗${NC}"
@@ -66,6 +78,7 @@ echo -e "${BRIGHT_BLUE}${BOLD}██╔══██║██╔══██╗�
 echo -e "${BRIGHT_BLUE}${BOLD}██║  ██║██║  ██║╚██████╗██║  ██║    ███████╗██║██║ ╚████║╚██████╔╝██╔╝ ██╗${NC}"
 echo -e "${BRIGHT_BLUE}${BOLD}╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝    ╚══════╝╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝${NC}"
 echo
+echo -e "${MAGENTA}"
 cat <<"EOF"
                                                                                                                  
     ██████╗ ██╗   ██╗    ██████╗ ███████╗ ██████╗ █████╗ ██████╗ ███╗   ██╗███████╗██╗     ██╗     ███████╗    
@@ -83,30 +96,38 @@ cat <<"EOF"
     ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚══════╝                                                         
                                                                                                                  
 EOF
+echo -e "${NC}"
 
 echo
 print_info "This script will guide you through installing Arch Linux with encryption and security hardening."
 print_warning "This script will erase all data on the target disk. Make sure you have backups!"
+echo -e "${YELLOW}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo
 
-# Confirm before proceeding
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Confirm before proceeding                                        │
+# └─────────────────────────────────────────────────────────────────┘
 if ! confirm "Do you want to continue?"; then
-	echo "Installation aborted by user."
+	echo -e "${RED}${BOLD}Installation aborted by user.${NC}"
 	exit 0
 fi
 
-# Keyboard layout selection
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Keyboard layout selection                                        │
+# └─────────────────────────────────────────────────────────────────┘
 print_section "Keyboard Layout Configuration"
-echo "Available keyboard layouts:"
-echo "1) us - US English (default)"
-echo "2) uk - United Kingdom"
-echo "3) de - German"
-echo "4) fr - French"
-echo "5) es - Spanish"
-echo "6) it - Italian"
-echo "7) Other (specify manually)"
+echo -e "${CYAN}Available keyboard layouts:${NC}"
+echo -e "${CYAN}┌───────────────────────────────────────┐${NC}"
+echo -e "${CYAN}│${NC} 1) us - US English (default)"
+echo -e "${CYAN}│${NC} 2) uk - United Kingdom"
+echo -e "${CYAN}│${NC} 3) de - German"
+echo -e "${CYAN}│${NC} 4) fr - French"
+echo -e "${CYAN}│${NC} 5) es - Spanish"
+echo -e "${CYAN}│${NC} 6) it - Italian"
+echo -e "${CYAN}│${NC} 7) Other (specify manually)"
+echo -e "${CYAN}└───────────────────────────────────────┘${NC}"
 
-read -p "Select your keyboard layout [1-7]: " kb_choice
+read -p "$(echo -e ${CYAN}"Select your keyboard layout [1-7]: "${NC})" kb_choice
 
 case $kb_choice in
 1) kb_layout="us" ;;
@@ -118,10 +139,10 @@ case $kb_choice in
 7)
 	# List available layouts
 	localectl list-keymaps | grep -v ".gz"
-	read -p "Enter keyboard layout from the list above: " kb_layout
+	read -p "$(echo -e ${CYAN}"Enter keyboard layout from the list above: "${NC})" kb_layout
 	;;
 *)
-	echo "Invalid choice. Defaulting to US layout."
+	echo -e "${YELLOW}Invalid choice. Defaulting to US layout.${NC}"
 	kb_layout="us"
 	;;
 esac
@@ -129,14 +150,20 @@ esac
 print_info "Setting keyboard layout to ${kb_layout}..."
 loadkeys $kb_layout
 
-# Display available disks
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Display available disks                                          │
+# └─────────────────────────────────────────────────────────────────┘
 print_section "Storage Configuration"
-echo "Available disks:"
+echo -e "${CYAN}Available disks:${NC}"
+echo -e "${CYAN}┌──────────────────────────────────────────────────────────┐${NC}"
 lsblk -d -o NAME,SIZE,MODEL
+echo -e "${CYAN}└──────────────────────────────────────────────────────────┘${NC}"
 echo
 
-# Get disk selection
-read -p "Enter the disk to install Arch Linux on (e.g., vda, sda): " disk
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Get disk selection                                               │
+# └─────────────────────────────────────────────────────────────────┘
+read -p "$(echo -e ${CYAN}"Enter the disk to install Arch Linux on (e.g., vda, sda): "${NC})" disk
 disk_path="/dev/${disk}"
 
 if [ ! -b "$disk_path" ]; then
@@ -146,15 +173,21 @@ fi
 
 print_warning "All data on $disk_path will be erased!"
 if ! confirm "Are you sure you want to continue?"; then
-	echo "Installation aborted by user."
+	echo -e "${RED}${BOLD}Installation aborted by user.${NC}"
 	exit 0
 fi
 
-# Display current partition layout
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Display current partition layout                                 │
+# └─────────────────────────────────────────────────────────────────┘
 print_info "Current partition layout:"
+echo -e "${CYAN}┌──────────────────────────────────────────────────────────┐${NC}"
 lsblk $disk_path
+echo -e "${CYAN}└──────────────────────────────────────────────────────────┘${NC}"
 
-# Create partitions
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Create partitions                                                │
+# └─────────────────────────────────────────────────────────────────┘
 print_section "Creating Partitions"
 print_info "Creating EFI partition (512MB) and main partition for encryption"
 
@@ -182,9 +215,12 @@ print_info "Formatting EFI partition..."
 mkfs.fat -F32 ${disk_path}1
 check_success "EFI partition formatted successfully." "Failed to format EFI partition."
 
-# Setup encryption
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Setup encryption                                                 │
+# └─────────────────────────────────────────────────────────────────┘
 print_section "Setting up Encryption"
 print_warning "You will be asked to enter an encryption passphrase. DO NOT FORGET THIS PASSPHRASE!"
+echo -e "${YELLOW}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 cryptsetup luksFormat --type luks2 ${disk_path}2
 check_success "Encrypted container created successfully." "Failed to create encrypted container."
@@ -193,7 +229,9 @@ print_info "Opening encrypted container..."
 cryptsetup open ${disk_path}2 cryptlvm
 check_success "Encrypted container opened successfully." "Failed to open encrypted container."
 
-# Setup LVM
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Setup LVM                                                        │
+# └─────────────────────────────────────────────────────────────────┘
 print_section "Setting up LVM"
 print_info "Creating physical volume..."
 pvcreate /dev/mapper/cryptlvm
@@ -203,14 +241,18 @@ print_info "Creating volume group..."
 vgcreate vg0 /dev/mapper/cryptlvm
 check_success "Volume group created successfully." "Failed to create volume group."
 
-# Get partition sizes from user
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Get partition sizes from user                                    │
+# └─────────────────────────────────────────────────────────────────┘
 print_info "Setting up logical volumes. Please specify sizes for each partition."
-read -p "Size for ROOT partition (e.g., 20G): " root_size
-read -p "Size for VAR partition (e.g., 15G): " var_size
-read -p "Size for USR partition (e.g., 20G): " usr_size
-read -p "Size for DATA partition (e.g., 10G): " data_size
-read -p "Size for HOME partition (e.g., 30G): " home_size
-read -p "Size for SWAP partition (e.g., 8G): " swap_size
+echo -e "${CYAN}┌──────────────────────────────────────────────────────────┐${NC}"
+read -p "$(echo -e ${CYAN}"Size for ROOT partition (e.g., 20G): "${NC})" root_size
+read -p "$(echo -e ${CYAN}"Size for VAR partition (e.g., 15G): "${NC})" var_size
+read -p "$(echo -e ${CYAN}"Size for USR partition (e.g., 20G): "${NC})" usr_size
+read -p "$(echo -e ${CYAN}"Size for DATA partition (e.g., 10G): "${NC})" data_size
+read -p "$(echo -e ${CYAN}"Size for HOME partition (e.g., 30G): "${NC})" home_size
+read -p "$(echo -e ${CYAN}"Size for SWAP partition (e.g., 8G): "${NC})" swap_size
+echo -e "${CYAN}└──────────────────────────────────────────────────────────┘${NC}"
 
 print_info "Creating logical volumes with specified sizes..."
 lvcreate -L $root_size vg0 -n root
@@ -222,27 +264,30 @@ lvcreate -L $swap_size vg0 -n swap
 
 check_success "Logical volumes created successfully." "Failed to create logical volumes."
 
-# Format partitions
-print_section "Formatting Partitions"
-
-# Get mount options from user
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Get mount options from user                                      │
+# └─────────────────────────────────────────────────────────────────┘
 print_info "Choose mount options for each partition"
-read -p "Mount options for /boot (default: nosuid,nodev,noexec): " boot_options
+echo -e "${CYAN}┌──────────────────────────────────────────────────────────┐${NC}"
+read -p "$(echo -e ${CYAN}"Mount options for /boot (default: nosuid,nodev,noexec): "${NC})" boot_options
 boot_options=${boot_options:-nosuid,nodev,noexec}
 
-read -p "Mount options for /home (default: nosuid,nodev,noexec): " home_options
+read -p "$(echo -e ${CYAN}"Mount options for /home (default: nosuid,nodev,noexec): "${NC})" home_options
 home_options=${home_options:-nosuid,nodev,noexec}
 
-read -p "Mount options for /var (default: nosuid,nodev,noexec): " var_options
+read -p "$(echo -e ${CYAN}"Mount options for /var (default: nosuid,nodev,noexec): "${NC})" var_options
 var_options=${var_options:-nosuid,nodev,noexec}
 
-read -p "Mount options for /usr (default: nodev): " usr_options
+read -p "$(echo -e ${CYAN}"Mount options for /usr (default: nodev): "${NC})" usr_options
 usr_options=${usr_options:-nodev}
 
-read -p "Mount options for /data (default: defaults): " data_options
+read -p "$(echo -e ${CYAN}"Mount options for /data (default: defaults): "${NC})" data_options
 data_options=${data_options:-defaults}
+echo -e "${CYAN}└──────────────────────────────────────────────────────────┘${NC}"
 
-# Format partitions
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Format partitions                                                │
+# └─────────────────────────────────────────────────────────────────┘
 print_info "Formatting partitions..."
 mkfs.ext4 /dev/vg0/root
 mkfs.ext4 /dev/vg0/var
@@ -253,7 +298,9 @@ mkswap /dev/vg0/swap
 
 check_success "Partitions formatted successfully." "Failed to format partitions."
 
-# Mount partitions
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Mount partitions                                                 │
+# └─────────────────────────────────────────────────────────────────┘
 print_section "Mounting Partitions"
 print_info "Mounting partitions with specified options..."
 
@@ -268,24 +315,30 @@ swapon /dev/vg0/swap
 
 check_success "Partitions mounted successfully." "Failed to mount partitions."
 
-# Install base packages
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Install base packages                                            │
+# └─────────────────────────────────────────────────────────────────┘
 print_section "Installing Base System"
 
 # Get additional packages from user
-read -p "Enter additional packages to install (space-separated): " additional_packages
+read -p "$(echo -e ${CYAN}"Enter additional packages to install (space-separated): "${NC})" additional_packages
 base_packages="base base-devel nano vim networkmanager lvm2 cryptsetup grub efibootmgr linux linux-firmware sof-firmware $additional_packages"
 
-# Desktop Environment Selection
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Desktop Environment Selection                                    │
+# └─────────────────────────────────────────────────────────────────┘
 print_section "Desktop Environment"
-echo "Would you like to install a desktop environment?"
-echo "1) None (console only)"
-echo "2) GNOME"
-echo "3) KDE Plasma"
-echo "4) Xfce"
-echo "5) MATE"
-echo "6) i3 (minimal window manager)"
+echo -e "${CYAN}Would you like to install a desktop environment?${NC}"
+echo -e "${CYAN}┌───────────────────────────────────────┐${NC}"
+echo -e "${CYAN}│${NC} 1) None (console only)"
+echo -e "${CYAN}│${NC} 2) GNOME"
+echo -e "${CYAN}│${NC} 3) KDE Plasma"
+echo -e "${CYAN}│${NC} 4) Xfce"
+echo -e "${CYAN}│${NC} 5) MATE"
+echo -e "${CYAN}│${NC} 6) i3 (minimal window manager)"
+echo -e "${CYAN}└───────────────────────────────────────┘${NC}"
 
-read -p "Select a desktop environment [1-6]: " de_choice
+read -p "$(echo -e ${CYAN}"Select a desktop environment [1-6]: "${NC})" de_choice
 
 case $de_choice in
 1) de_packages="" ;;
@@ -325,14 +378,18 @@ pacstrap /mnt $base_packages
 
 check_success "Base system installed successfully." "Failed to install base system."
 
-# Generate fstab
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Generate fstab                                                   │
+# └─────────────────────────────────────────────────────────────────┘
 print_section "Generating fstab"
 print_info "Generating fstab..."
 genfstab -U /mnt >/mnt/etc/fstab.new
 
 # Show fstab to user
 echo -e "\n${YELLOW}Generated fstab:${NC}"
+echo -e "${CYAN}┌──────────────────────────────────────────────────────────┐${NC}"
 cat /mnt/etc/fstab.new
+echo -e "${CYAN}└──────────────────────────────────────────────────────────┘${NC}"
 echo
 
 # Confirm fstab looks good
@@ -344,10 +401,14 @@ else
 	exit 1
 fi
 
-# Chroot configuration
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Chroot configuration                                             │
+# └─────────────────────────────────────────────────────────────────┘
 print_section "Configuring System"
 
-# Create a script to run inside the chroot environment
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Create a script to run inside the chroot environment             │
+# └─────────────────────────────────────────────────────────────────┘
 # Pass the disk variable and keyboard layout to the chroot
 cat >/mnt/root/chroot_setup.sh <<EOF
 #!/bin/bash
@@ -490,20 +551,25 @@ EOF
 # Make the script executable
 chmod +x /mnt/root/chroot_setup.sh
 
-# Execute the script inside chroot
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Execute the script inside chroot                                │
+# └─────────────────────────────────────────────────────────────────┘
 print_info "Running configuration script inside chroot..."
 arch-chroot /mnt /root/chroot_setup.sh
 
 # Clean up the script after execution
 rm /mnt/root/chroot_setup.sh
 
-# Finish installation
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Finish installation                                             │
+# └─────────────────────────────────────────────────────────────────┘
 print_section "Completing Installation"
 print_info "Unmounting partitions..."
 umount -a
 
 print_section "Installation Complete"
 echo
+echo -e "${BRIGHT_BLUE}${BOLD}"
 cat <<"EOF"
 
    █████╗ ██████╗  ██████╗██╗  ██╗    ██╗     ██╗███╗   ██╗██╗   ██╗██╗  ██╗
@@ -521,9 +587,10 @@ cat <<"EOF"
     ╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝  
 
 EOF
+echo -e "${NC}"
 echo
+echo -e "${MAGENTA}"
 cat <<"EOF"
-$(tput setaf 5)
     ██╗███╗   ██╗███████╗████████╗ █████╗ ██╗     ██╗      █████╗ ████████╗██╗ ██████╗ ███╗   ██╗
     ██║████╗  ██║██╔════╝╚══██╔══╝██╔══██╗██║     ██║     ██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║
     ██║██╔██╗ ██║███████╗   ██║   ███████║██║     ██║     ███████║   ██║   ██║██║   ██║██╔██╗ ██║
@@ -537,12 +604,14 @@ $(tput setaf 5)
     ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝      ╚═╝                 
     ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗    ██╗                 
      ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝    ╚═╝                 
-$(tput sgr0)
 EOF
+echo -e "${NC}"
 echo
+echo -e "${GREEN}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
 print_info "Arch Linux has been installed with encryption and hardening."
 print_info "You can now reboot your system and remove the installation media."
 print_info "After reboot, you'll need to enter the disk encryption password."
+echo -e "${GREEN}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
 
 if confirm "Would you like to reboot now?"; then
 	print_info "Rebooting..."
