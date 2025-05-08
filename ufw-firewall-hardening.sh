@@ -110,12 +110,12 @@ check_status "Added rate limiting for SSH connections"
 # Step 6: Add TCP SYN packet validation to before.rules
 echo "Configuring TCP SYN packet validation for IPv4..."
 BEFORE_RULES="/etc/ufw/before.rules"
-RULES_TO_ADD="-A ufw-before-input -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j ufw-logging-deny\n-A ufw-before-input -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j DROP"
+IPv4_RULES="-A ufw-before-input -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j ufw-logging-deny\n-A ufw-before-input -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j DROP"
 
 # Check if rules already exist
 if ! grep -q "ufw-before-input -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j DROP" "$BEFORE_RULES"; then
-	# Find the right place to add rules - before the COMMIT line
-	sed -i "/COMMIT/i $RULES_TO_ADD" "$BEFORE_RULES"
+	# Insert the rules before the COMMIT line
+	sed -i "/^COMMIT/i $IPv4_RULES" "$BEFORE_RULES"
 	check_status "Added TCP SYN packet validation to before.rules"
 else
 	echo "[INFO] TCP SYN packet validation rules already exist in before.rules"
@@ -124,12 +124,12 @@ fi
 # Step 7: Add TCP SYN packet validation to before6.rules
 echo "Configuring TCP SYN packet validation for IPv6..."
 BEFORE6_RULES="/etc/ufw/before6.rules"
-RULES6_TO_ADD="-A ufw6-before-input -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j ufw6-logging-deny\n-A ufw6-before-input -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j DROP"
+IPv6_RULES="-A ufw6-before-input -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j ufw6-logging-deny\n-A ufw6-before-input -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j DROP"
 
 # Check if rules already exist
 if ! grep -q "ufw6-before-input -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j DROP" "$BEFORE6_RULES"; then
-	# Find the right place to add rules - before the COMMIT line
-	sed -i "/COMMIT/i $RULES6_TO_ADD" "$BEFORE6_RULES"
+	# Insert the rules before the COMMIT line
+	sed -i "/^COMMIT/i $IPv6_RULES" "$BEFORE6_RULES"
 	check_status "Added TCP SYN packet validation to before6.rules"
 else
 	echo "[INFO] TCP SYN packet validation rules already exist in before6.rules"
