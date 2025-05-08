@@ -413,9 +413,7 @@ print_section "Configuring System"
 cat >/mnt/root/chroot_setup.sh <<EOF
 #!/bin/bash
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Pass the variables to the chroot                                 │
-# └─────────────────────────────────────────────────────────────────┘
+# Pass the variables to the chroot
 disk="${disk}"
 disk_path="/dev/\${disk}"
 de_service="${de_service}"
@@ -424,91 +422,60 @@ kb_layout="${kb_layout}"
 # Colors for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
 NC='\033[0m' # No Color
-
-# Function to print section headers
-print_section() {
-    echo -e "\n\${BLUE}\${BOLD}╔════════════ \$1 ════════════╗\${NC}\n"
-}
 
 # Function to print info messages
 print_info() {
-    echo -e "\${GREEN}\${BOLD}[INFO]\${NC} \$1"
+    echo -e "\${GREEN}INFO:\${NC} \$1"
 }
 
-# Function to print warnings
-print_warning() {
-    echo -e "\${YELLOW}\${BOLD}[WARNING]\${NC} \$1"
-}
-
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Configure keyboard layout                                        │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Keyboard Configuration"
+# Configure keyboard layout
 print_info "Setting system keyboard layout to \${kb_layout}..."
 echo "KEYMAP=\${kb_layout}" > /etc/vconsole.conf
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Configure mkinitcpio                                             │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Initramfs Configuration"
+# Configure mkinitcpio
 print_info "Configuring mkinitcpio..."
 sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block encrypt lvm2 filesystems fsck usr)/' /etc/mkinitcpio.conf
 mkinitcpio -P
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Timezone selection                                               │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Timezone Configuration"
+# Timezone selection
 print_info "Setting timezone..."
 # List available regions
-echo -e "\${CYAN}Available regions:\${NC}"
-echo -e "\${CYAN}┌───────────────────────────────────────┐\${NC}"
+echo "Available regions:"
 ls -1 /usr/share/zoneinfo | grep -v posix | grep -v right
-echo -e "\${CYAN}└───────────────────────────────────────┘\${NC}"
-read -p "\$(echo -e \${CYAN}Enter your region: \${NC})" region
+read -p "Enter your region: " region
 
 if [ -d "/usr/share/zoneinfo/\$region" ]; then
-    echo -e "\${CYAN}Cities in \$region:\${NC}"
-    echo -e "\${CYAN}┌───────────────────────────────────────┐\${NC}"
+    echo "Cities in \$region:"
     ls -1 /usr/share/zoneinfo/\$region
-    echo -e "\${CYAN}└───────────────────────────────────────┘\${NC}"
-    read -p "\$(echo -e \${CYAN}Enter your city: \${NC})" city
+    read -p "Enter your city: " city
     
     if [ -f "/usr/share/zoneinfo/\$region/\$city" ]; then
         ln -sf /usr/share/zoneinfo/\$region/\$city /etc/localtime
-        print_info "Timezone set to \$region/\$city"
+        echo "Timezone set to \$region/\$city"
     else
-        print_warning "Invalid city. Setting default timezone (UTC)."
+        echo "Invalid city. Setting default timezone (UTC)."
         ln -sf /usr/share/zoneinfo/UTC /etc/localtime
     fi
 else
-    print_warning "Invalid region. Setting default timezone (UTC)."
+    echo "Invalid region. Setting default timezone (UTC)."
     ln -sf /usr/share/zoneinfo/UTC /etc/localtime
 fi
 
 hwclock --systohc
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Language selection                                               │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Locale Configuration"
+# Language selection
 print_info "Configuring locale..."
-echo -e "\${CYAN}Available locales (abbreviated list):\${NC}"
-echo -e "\${CYAN}┌───────────────────────────────────────┐\${NC}"
-echo -e "\${CYAN}│\${NC} 1) en_US.UTF-8 - English (US)"
-echo -e "\${CYAN}│\${NC} 2) fr_FR.UTF-8 - French"
-echo -e "\${CYAN}│\${NC} 3) de_DE.UTF-8 - German"
-echo -e "\${CYAN}│\${NC} 4) es_ES.UTF-8 - Spanish"
-echo -e "\${CYAN}│\${NC} 5) it_IT.UTF-8 - Italian"
-echo -e "\${CYAN}│\${NC} 6) ja_JP.UTF-8 - Japanese"
-echo -e "\${CYAN}│\${NC} 7) Other (specify manually)"
-echo -e "\${CYAN}└───────────────────────────────────────┘\${NC}"
+echo "Available locales (abbreviated list):"
+echo "1) en_US.UTF-8 - English (US)"
+echo "2) fr_FR.UTF-8 - French"
+echo "3) de_DE.UTF-8 - German"
+echo "4) es_ES.UTF-8 - Spanish"
+echo "5) it_IT.UTF-8 - Italian"
+echo "6) ja_JP.UTF-8 - Japanese"
+echo "7) Other (specify manually)"
 
-read -p "\$(echo -e \${CYAN}Select your preferred locale [1-7]: \${NC})" locale_choice
+read -p "Select your preferred locale [1-7]: " locale_choice
 
 case \$locale_choice in
     1) locale="en_US.UTF-8" ;;
@@ -518,50 +485,31 @@ case \$locale_choice in
     5) locale="it_IT.UTF-8" ;;
     6) locale="ja_JP.UTF-8" ;;
     7) 
-        read -p "\$(echo -e \${CYAN}Enter locale (format: xx_XX.UTF-8): \${NC})" locale
+        read -p "Enter locale (format: xx_XX.UTF-8): " locale
         ;;
     *) 
-        echo -e "\${YELLOW}Invalid choice. Defaulting to en_US.UTF-8\${NC}"
+        echo "Invalid choice. Defaulting to en_US.UTF-8"
         locale="en_US.UTF-8"
         ;;
 esac
 
-echo "\$locale UTF-8" >> /etc/locale.gen
+echo "\$locale UTF-8" > /etc/locale.gen
 locale-gen
 echo "LANG=\$locale" > /etc/locale.conf
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Hostname selection                                               │
-# └─────────────────────────────────────────────────────────────────┘
-#print_section "Hostname Configuration"
-#read -p "Enter hostname for this system: " hostname
-read -p "\$(echo -e \${CYAN}Enter the Hostname for this system: \${NC})" hostname
+# Set hostname
+read -p "Enter hostname for this system: " hostname
 echo "\$hostname" > /etc/hostname
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Root password settings                                          │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Root Password Configuration"
-print_warning "Please enter a strong password for the root account!"
-echo -e "\${YELLOW}\${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\${NC}"
-passwd
+# Set root password
 print_info "Setting root password..."
+passwd
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Create a regular user                                           │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "User Account Setup"
-read -p "\$(echo -e \${CYAN}Enter username: \${NC})" username
+# Create user
+read -p "Enter username for new user: " username
 useradd -m -G wheel -s /bin/bash "\$username"
-
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ User password settings                                          │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "User Password Configuration"
-print_warning "Please enter a strong password for the user account!"
-echo -e "\${YELLOW}\${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\${NC}"
-passwd "\$username"
 print_info "Setting password for \$username..."
+passwd "\$username"
 
 # Configure sudo
 print_info "Configuring sudo..."
@@ -572,10 +520,7 @@ echo "\$username ALL=(ALL:ALL) ALL" >> /etc/sudoers.d/\$username
 print_info "Configuring sudo logging..."
 echo "Defaults logfile=/var/log/sudo.log" >> /etc/sudoers.d/logging
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Installing and configuring bootloader                           │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Bootloader Installation"
+# Configure GRUB
 print_info "Installing GRUB bootloader..."
 grub-install --efi-directory=/boot --bootloader-id=GRUB
 
@@ -589,10 +534,7 @@ sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=3 
 # Generate GRUB config
 grub-mkconfig -o /boot/grub/grub.cfg
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Enable services                                                 │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Enabling System Services"
+# Enable NetworkManager
 print_info "Enabling NetworkManager..."
 systemctl enable NetworkManager
 
@@ -602,12 +544,8 @@ if [ -n "\$de_service" ]; then
     systemctl enable \$de_service
 fi
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Final message                                                   │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Chroot Setup Complete"
-print_info "Core system configurations completed successfully!"
-echo -e "\${YELLOW}\${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\${NC}"
+# Final message
+print_info "Chroot setup complete!"
 EOF
 
 # Make the script executable
