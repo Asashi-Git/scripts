@@ -9,7 +9,6 @@ fstab done
 hardening ssh done
 otp done
 kernel done
+ufw done
 fail2ban done
 web server done
-
-ufw
