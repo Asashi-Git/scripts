@@ -265,11 +265,6 @@ lvcreate -L $swap_size vg0 -n swap
 check_success "Logical volumes created successfully." "Failed to create logical volumes."
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ Format partitions                                                │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Formatting Partitions"
-
-# ┌─────────────────────────────────────────────────────────────────┐
 # │ Get mount options from user                                      │
 # └─────────────────────────────────────────────────────────────────┘
 print_info "Choose mount options for each partition"
@@ -449,71 +444,53 @@ print_warning() {
     echo -e "\${YELLOW}\${BOLD}[WARNING]\${NC} \$1"
 }
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Configure keyboard layout                                        │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Keyboard Configuration"
+# Configure keyboard layout
 print_info "Setting system keyboard layout to \${kb_layout}..."
 echo "KEYMAP=\${kb_layout}" > /etc/vconsole.conf
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Configure mkinitcpio                                             │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Initramfs Configuration"
+# Configure mkinitcpio
 print_info "Configuring mkinitcpio..."
 sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block encrypt lvm2 filesystems fsck usr)/' /etc/mkinitcpio.conf
 mkinitcpio -P
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Timezone selection                                               │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Timezone Configuration"
+# Timezone selection
 print_info "Setting timezone..."
 # List available regions
-echo -e "\${CYAN}Available regions:\${NC}"
-echo -e "\${CYAN}┌───────────────────────────────────────┐\${NC}"
+echo "Available regions:"
 ls -1 /usr/share/zoneinfo | grep -v posix | grep -v right
-echo -e "\${CYAN}└───────────────────────────────────────┘\${NC}"
-read -p "\$(echo -e \${CYAN}Enter your region: \${NC})" region
+read -p "Enter your region: " region
 
 if [ -d "/usr/share/zoneinfo/\$region" ]; then
-    echo -e "\${CYAN}Cities in \$region:\${NC}"
-    echo -e "\${CYAN}┌───────────────────────────────────────┐\${NC}"
+    echo "Cities in \$region:"
     ls -1 /usr/share/zoneinfo/\$region
-    echo -e "\${CYAN}└───────────────────────────────────────┘\${NC}"
-    read -p "\$(echo -e \${CYAN}Enter your city: \${NC})" city
+    read -p "Enter your city: " city
     
     if [ -f "/usr/share/zoneinfo/\$region/\$city" ]; then
         ln -sf /usr/share/zoneinfo/\$region/\$city /etc/localtime
-        print_info "Timezone set to \$region/\$city"
+        echo "Timezone set to \$region/\$city"
     else
-        print_warning "Invalid city. Setting default timezone (UTC)."
+        echo "Invalid city. Setting default timezone (UTC)."
         ln -sf /usr/share/zoneinfo/UTC /etc/localtime
     fi
 else
-    print_warning "Invalid region. Setting default timezone (UTC)."
+    echo "Invalid region. Setting default timezone (UTC)."
     ln -sf /usr/share/zoneinfo/UTC /etc/localtime
 fi
 
 hwclock --systohc
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Language selection                                               │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Locale Configuration"
+# Language selection
 print_info "Configuring locale..."
-echo -e "\${CYAN}Available locales (abbreviated list):\${NC}"
-echo -e "\${CYAN}┌───────────────────────────────────────┐\${NC}"
-echo -e "\${CYAN}│\${NC} 1) en_US.UTF-8 - English (US)"
-echo -e "\${CYAN}│\${NC} 2) fr_FR.UTF-8 - French"
-echo -e "\${CYAN}│\${NC} 3) de_DE.UTF-8 - German"
-echo -e "\${CYAN}│\${NC} 4) es_ES.UTF-8 - Spanish"
-echo -e "\${CYAN}│\${NC} 5) it_IT.UTF-8 - Italian"
-echo -e "\${CYAN}│\${NC} 6) ja_JP.UTF-8 - Japanese"
-echo -e "\${CYAN}│\${NC} 7) Other (specify manually)"
-echo -e "\${CYAN}└───────────────────────────────────────┘\${NC}"
+echo "Available locales (abbreviated list):"
+echo "1) en_US.UTF-8 - English (US)"
+echo "2) fr_FR.UTF-8 - French"
+echo "3) de_DE.UTF-8 - German"
+echo "4) es_ES.UTF-8 - Spanish"
+echo "5) it_IT.UTF-8 - Italian"
+echo "6) ja_JP.UTF-8 - Japanese"
+echo "7) Other (specify manually)"
 
-read -p "\$(echo -e \${CYAN}Select your preferred locale [1-7]: \${NC})" locale_choice
+read -p "Select your preferred locale [1-7]: " locale_choice
 
 case \$locale_choice in
     1) locale="en_US.UTF-8" ;;
@@ -523,129 +500,86 @@ case \$locale_choice in
     5) locale="it_IT.UTF-8" ;;
     6) locale="ja_JP.UTF-8" ;;
     7) 
-        read -p "\$(echo -e \${CYAN}Enter locale (format: xx_XX.UTF-8): \${NC})" locale
+        read -p "Enter locale (format: xx_XX.UTF-8): " locale
         ;;
     *) 
-        echo -e "\${YELLOW}Invalid choice. Defaulting to en_US.UTF-8\${NC}"
+        echo "Invalid choice. Defaulting to en_US.UTF-8"
         locale="en_US.UTF-8"
         ;;
 esac
 
 echo "\$locale UTF-8" > /etc/locale.gen
 locale-gen
-echo "LANG=$locale" > /etc/locale.conf
+echo "LANG=\$locale" > /etc/locale.conf
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Network configuration                                           │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Network Configuration"
-read -p "$(echo -e ${CYAN}Enter hostname for this computer: ${NC})" hostname
-echo "$hostname" > /etc/hostname
+# Set hostname
+read -p "Enter hostname for this system: " hostname
+echo "\$hostname" > /etc/hostname
 
-# Create hosts file
-cat > /etc/hosts <<HOSTS
-127.0.0.1   localhost
-::1         localhost
-127.0.1.1   $hostname.localdomain   $hostname
-HOSTS
-
-print_info "Network configuration completed."
-
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Root password settings                                          │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Root Password Configuration"
-print_warning "Please enter a strong password for the root account!"
-echo -e "${YELLOW}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-
+# Set root password
+print_info "Setting root password..."
 passwd
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Create a regular user                                           │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "User Account Setup"
-read -p "$(echo -e ${CYAN}Would you like to create a regular user account? [y/n]: ${NC})" create_user
+# Create user
+read -p "Enter username for new user: " username
+useradd -m -G wheel -s /bin/bash "\$username"
+print_info "Setting password for \$username..."
+passwd "\$username"
 
-if [[ "$create_user" =~ ^[Yy]$ ]]; then
-    read -p "$(echo -e ${CYAN}Enter username: ${NC})" username
-    
-    # Create the user
-    useradd -m -G wheel,audio,video,optical,storage,users -s /bin/bash $username
-    
-    print_warning "Please enter a strong password for user $username!"
-    echo -e "${YELLOW}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    passwd $username
-    
-    # Configure sudo access
-    print_info "Configuring sudo access..."
-    echo "%wheel ALL=(ALL) ALL" > /etc/sudoers.d/wheel
-    chmod 440 /etc/sudoers.d/wheel
-    
-    print_info "User $username created successfully with sudo privileges."
-else
-    print_info "Skipping user creation."
-fi
+# Configure sudo
+print_info "Configuring sudo..."
+sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
+echo "\$username ALL=(ALL:ALL) ALL" >> /etc/sudoers.d/\$username
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Installing and configuring bootloader                           │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Bootloader Installation"
+# Configure sudo logging
+print_info "Configuring sudo logging..."
+echo "Defaults logfile=/var/log/sudo.log" >> /etc/sudoers.d/logging
+
+# Configure GRUB
 print_info "Installing GRUB bootloader..."
-grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+grub-install --efi-directory=/boot --bootloader-id=GRUB
 
 # Get UUID for encrypted device - now using the dynamic disk path
-encrypted_uuid=$(blkid -o value -s UUID ${disk_path}2)
-print_info "Found encrypted device UUID: ${encrypted_uuid}"
+encrypted_uuid=\$(blkid -o value -s UUID \${disk_path}2)
+print_info "Found encrypted device UUID: \${encrypted_uuid}"
 
 # Configure GRUB for encrypted boot
-sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=3 quiet cryptdevice=UUID=${encrypted_uuid}:cryptlvm root=\/dev\/vg0\/root\"/" /etc/default/grub
+sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=3 quiet cryptdevice=UUID=\${encrypted_uuid}:cryptlvm root=\/dev\/vg0\/root\"/" /etc/default/grub
 
 # Generate GRUB config
 grub-mkconfig -o /boot/grub/grub.cfg
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Enable services                                                 │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Enabling System Services"
+# Enable NetworkManager
 print_info "Enabling NetworkManager..."
 systemctl enable NetworkManager
 
 # Enable display manager if a desktop environment was selected
-if [ -n "$de_service" ]; then
-    print_info "Enabling display manager $de_service..."
-    systemctl enable $de_service
+if [ -n "\$de_service" ]; then
+    print_info "Enabling display manager \$de_service..."
+    systemctl enable \$de_service
 fi
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Final message                                                   │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Chroot Setup Complete"
-print_info "Core system configurations completed successfully!"
-echo -e "${YELLOW}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+# Final message
+print_info "Chroot setup complete!"
 EOF
 
 # Make the script executable
 chmod +x /mnt/root/chroot_setup.sh
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Execute the script inside chroot                                │
-# └─────────────────────────────────────────────────────────────────┘
+# Execute the script inside chroot
 print_info "Running configuration script inside chroot..."
 arch-chroot /mnt /root/chroot_setup.sh
 
 # Clean up the script after execution
 rm /mnt/root/chroot_setup.sh
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Finish installation                                             │
-# └─────────────────────────────────────────────────────────────────┘
+# Finish installation
 print_section "Completing Installation"
 print_info "Unmounting partitions..."
 umount -a
 
 print_section "Installation Complete"
 echo
-echo -e "${BRIGHT_BLUE}${BOLD}"
 cat <<"EOF"
 
    █████╗ ██████╗  ██████╗██╗  ██╗    ██╗     ██╗███╗   ██╗██╗   ██╗██╗  ██╗
@@ -663,10 +597,9 @@ cat <<"EOF"
     ╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝  
 
 EOF
-echo -e "${NC}"
 echo
-echo -e "${MAGENTA}"
 cat <<"EOF"
+$(tput setaf 5)
     ██╗███╗   ██╗███████╗████████╗ █████╗ ██╗     ██╗      █████╗ ████████╗██╗ ██████╗ ███╗   ██╗
     ██║████╗  ██║██╔════╝╚══██╔══╝██╔══██╗██║     ██║     ██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║
     ██║██╔██╗ ██║███████╗   ██║   ███████║██║     ██║     ███████║   ██║   ██║██║   ██║██╔██╗ ██║
@@ -680,14 +613,12 @@ cat <<"EOF"
     ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝      ╚═╝                 
     ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗    ██╗                 
      ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝    ╚═╝                 
+$(tput sgr0)
 EOF
-echo -e "${NC}"
 echo
-echo -e "${GREEN}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
 print_info "Arch Linux has been installed with encryption and hardening."
 print_info "You can now reboot your system and remove the installation media."
 print_info "After reboot, you'll need to enter the disk encryption password."
-echo -e "${GREEN}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
 
 if confirm "Would you like to reboot now?"; then
   print_info "Rebooting..."
