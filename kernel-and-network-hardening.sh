@@ -1,59 +1,30 @@
 #!/bin/bash
 
-# ╔═══════════════════════════════════════════════════════════════════╗
-# ║  Kernel and Network Hardening Script for Arch Linux               ║
-# ║  This script configures system security parameters                ║
-# ╚═══════════════════════════════════════════════════════════════════╝
+# Kernel and Network Hardening Script for Arch Linux
+# This script:
+# 1. Sets up network security parameters
+# 2. Implements kernel hardening
+# 3. Configures file system and memory protection
+# 4. Creates symbolic link for UFW compatibility
+# 5. Verifies all settings have been applied
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Colors for output formatting                                     │
-# └─────────────────────────────────────────────────────────────────┘
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-BRIGHT_BLUE='\033[1;34m'
-MAGENTA='\033[0;35m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m' # No Color
+# Check if script is run with root privileges
+if [[ $EUID -ne 0 ]]; then
+  echo "This script must be run as root"
+  exit 1
+fi
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Default settings                                                 │
-# └─────────────────────────────────────────────────────────────────┘
+# Default settings
 BACKUP_DIR="/root/sysctl_backup"
 NETWORK_CONF="/etc/sysctl.d/90-network-security.conf"
 KERNEL_CONF="/etc/sysctl.d/91-kernel-hardening.conf"
 FS_MEM_CONF="/etc/sysctl.d/92-fs-memory-protection.conf"
 SYSCTL_CONF="/etc/sysctl.conf"
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Utility functions                                                │
-# └─────────────────────────────────────────────────────────────────┘
-# Function to print section headers
-print_section() {
-  echo -e "\n${BLUE}${BOLD}╔════════════ $1 ════════════╗${NC}\n"
-}
+# Create backup directory
+mkdir -p $BACKUP_DIR
 
-# Function to print information
-print_info() {
-  echo -e "${GREEN}${BOLD}[INFO]${NC} $1"
-}
-
-# Function to print warnings
-print_warning() {
-  echo -e "${YELLOW}${BOLD}[WARNING]${NC} $1"
-}
-
-# Function to print errors
-print_error() {
-  echo -e "${RED}${BOLD}[ERROR]${NC} $1"
-}
-
-# Function to print success messages
-print_success() {
-  echo -e "${GREEN}${BOLD}[SUCCESS]${NC} $1"
-}
+echo "===== Kernel and Network Hardening ====="
 
 # Function to backup a file before modifying
 backup_file() {
@@ -63,72 +34,12 @@ backup_file() {
   # Only backup if file exists
   if [ -f "$file" ]; then
     cp "$file" "$backup"
-    print_info "Backed up $file to $backup"
+    echo "✓ Backed up $file to $backup"
   fi
 }
 
-# Function to verify a sysctl parameter
-verify_sysctl() {
-  local param=$1
-  local expected_value=$2
-  local actual_value=$(sysctl -n "$param" 2>/dev/null)
-
-  if [ -z "$actual_value" ]; then
-    print_warning "Parameter $param does not exist or couldn't be read."
-    return 1
-  elif [ "$actual_value" != "$expected_value" ]; then
-    print_warning "Parameter $param has value '$actual_value' (expected '$expected_value')"
-    return 1
-  else
-    print_success "$param = $actual_value"
-    return 0
-  fi
-}
-
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Check if running as root                                         │
-# └─────────────────────────────────────────────────────────────────┘
-if [[ $EUID -ne 0 ]]; then
-  print_error "This script must be run as root"
-  exit 1
-fi
-
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Create backup directory                                          │
-# └─────────────────────────────────────────────────────────────────┘
-mkdir -p $BACKUP_DIR
-
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Welcome message                                                  │
-# └─────────────────────────────────────────────────────────────────┘
-clear
-echo
-echo -e "${BRIGHT_BLUE}${BOLD}"
-cat <<"EOF"
-  ██╗  ██╗███████╗██████╗ ███╗   ██╗███████╗██╗         ███████╗███████╗ ██████╗██╗   ██╗██████╗ ██╗████████╗██╗   ██╗
-  ██║ ██╔╝██╔════╝██╔══██╗████╗  ██║██╔════╝██║         ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██║╚══██╔══╝╚██╗ ██╔╝
-  █████╔╝ █████╗  ██████╔╝██╔██╗ ██║█████╗  ██║         ███████╗█████╗  ██║     ██║   ██║██████╔╝██║   ██║    ╚████╔╝ 
-  ██╔═██╗ ██╔══╝  ██╔══██╗██║╚██╗██║██╔══╝  ██║         ╚════██║██╔══╝  ██║     ██║   ██║██╔══██╗██║   ██║     ╚██╔╝  
-  ██║  ██╗███████╗██║  ██║██║ ╚████║███████╗███████╗    ███████║███████╗╚██████╗╚██████╔╝██║  ██║██║   ██║      ██║   
-  ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝    ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝   ╚═╝      ╚═╝   
-EOF
-echo -e "${NC}"
-echo
-echo -e "${MAGENTA}${BOLD}"
-cat <<"EOF"
-  ███╗   ██╗███████╗████████╗██╗    ██╗ ██████╗ ██████╗ ██╗  ██╗    ██╗  ██╗ █████╗ ██████╗ ██████╗ ███████╗███╗   ██╗██╗███╗   ██╗ ██████╗ 
-  ████╗  ██║██╔════╝╚══██╔══╝██║    ██║██╔═══██╗██╔══██╗██║ ██╔╝    ██║  ██║██╔══██╗██╔══██╗██╔══██╗██╔════╝████╗  ██║██║████╗  ██║██╔════╝ 
-  ██╔██╗ ██║█████╗     ██║   ██║ █╗ ██║██║   ██║██████╔╝█████╔╝     ███████║███████║██████╔╝██║  ██║█████╗  ██╔██╗ ██║██║██╔██╗ ██║██║  ███╗
-  ██║╚██╗██║██╔══╝     ██║   ██║███╗██║██║   ██║██╔══██╗██╔═██╗     ██╔══██║██╔══██║██╔══██╗██║  ██║██╔══╝  ██║╚██╗██║██║██║╚██╗██║██║   ██║
-  ██║ ╚████║███████╗   ██║   ╚███╔███╔╝╚██████╔╝██║  ██║██║  ██╗    ██║  ██║██║  ██║██║  ██║██████╔╝███████╗██║ ╚████║██║██║ ╚████║╚██████╔╝
-  ╚═╝  ╚═══╝╚══════╝   ╚═╝    ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝    ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═══╝ ╚═════╝ 
-EOF
-echo -e "${NC}"
-
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Configure Network Security Settings                              │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Network Security Configuration"
+# Step 1: Configure Network Security Settings
+echo -e "\n[1/5] Setting up network security parameters..."
 
 # Backup existing config if it exists
 backup_file "$NETWORK_CONF"
@@ -173,12 +84,10 @@ net.ipv6.conf.default.forwarding = 0
 net.ipv4.tcp_rfc1337 = 1
 EOF
 
-print_success "Network security parameters configured."
+echo "✓ Network security parameters configured."
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Configure Kernel Hardening Settings                              │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Kernel Hardening Configuration"
+# Step 2: Configure Kernel Hardening Settings
+echo -e "\n[2/5] Implementing kernel hardening..."
 
 # Backup existing config if it exists
 backup_file "$KERNEL_CONF"
@@ -212,12 +121,10 @@ kernel.kexec_load_disabled = 1
 kernel.perf_event_paranoid = 3
 EOF
 
-print_success "Kernel hardening parameters configured."
+echo "✓ Kernel hardening parameters configured."
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Configure File System and Memory Protection                      │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "File System and Memory Protection"
+# Step 3: Configure File System and Memory Protection
+echo -e "\n[3/5] Setting up file system and memory protection..."
 
 # Backup existing config if it exists
 backup_file "$FS_MEM_CONF"
@@ -241,76 +148,89 @@ fs.protected_symlinks = 1
 vm.swappiness = 1
 EOF
 
-print_success "File system and memory protection parameters configured."
+echo "✓ File system and memory protection parameters configured."
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Set up UFW Compatibility                                         │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "UFW Compatibility Configuration"
+# Step 4: Create symbolic link for UFW compatibility
+echo -e "\n[4/5] Setting up UFW compatibility..."
 
 # Check if /etc/sysctl.conf exists, if so backup and remove
 if [ -f "$SYSCTL_CONF" ]; then
   if [ -L "$SYSCTL_CONF" ]; then
-    print_info "Existing symbolic link detected at $SYSCTL_CONF"
+    echo "Existing symbolic link detected at $SYSCTL_CONF"
     backup_file "$SYSCTL_CONF"
     rm "$SYSCTL_CONF"
-    print_info "Removed existing symbolic link"
+    echo "✓ Removed existing symbolic link"
   else
-    print_info "Existing file detected at $SYSCTL_CONF"
+    echo "Existing file detected at $SYSCTL_CONF"
     backup_file "$SYSCTL_CONF"
     rm "$SYSCTL_CONF"
-    print_info "Backed up and removed the existing file"
+    echo "✓ Backed up and removed the existing file"
   fi
 fi
 
 # Create symbolic link for UFW compatibility
 ln -s "$NETWORK_CONF" "$SYSCTL_CONF"
-print_success "Created symbolic link from $NETWORK_CONF to $SYSCTL_CONF for UFW compatibility"
+echo "✓ Created symbolic link from $NETWORK_CONF to $SYSCTL_CONF for UFW compatibility"
 
 # If UFW is installed, check its configuration
 if command -v ufw >/dev/null 2>&1; then
-  print_info "UFW is installed. Checking configuration..."
+  echo "UFW is installed. Checking configuration..."
 
   if [ -f "/etc/default/ufw" ]; then
     # Check if IPT_SYSCTL is already set to /etc/sysctl.conf
     if grep -q "^IPT_SYSCTL=/etc/sysctl.conf" "/etc/default/ufw"; then
-      print_success "UFW is already configured to use /etc/sysctl.conf"
+      echo "✓ UFW is already configured to use /etc/sysctl.conf"
     else
       # Backup UFW config
       backup_file "/etc/default/ufw"
 
       # Update IPT_SYSCTL in UFW config
       sed -i 's|^IPT_SYSCTL=.*|IPT_SYSCTL=/etc/sysctl.conf|' "/etc/default/ufw"
-      print_success "Updated UFW configuration to use /etc/sysctl.conf"
+      echo "✓ Updated UFW configuration to use /etc/sysctl.conf"
     fi
   else
-    print_warning "UFW is installed but the config file was not found at /etc/default/ufw"
+    echo "⚠ UFW is installed but the config file was not found at /etc/default/ufw"
   fi
 else
-  print_info "UFW is not installed. No UFW configuration needed."
+  echo "ℹ UFW is not installed. No UFW configuration needed."
 fi
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Apply and Verify Settings                                        │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Applying and Verifying Settings"
+# Step 5: Apply and Verify Settings
+echo -e "\n[5/5] Applying and verifying settings..."
 
 # Apply all sysctl settings
-print_info "Applying sysctl settings..."
+echo "Applying sysctl settings..."
 sysctl --system
 
 if [ $? -ne 0 ]; then
-  print_error "Failed to apply sysctl settings. Check the output above for errors."
+  echo "⚠ Failed to apply sysctl settings. Check the output above for errors."
   exit 1
 else
-  print_success "Successfully applied all sysctl settings."
+  echo "✓ Successfully applied all sysctl settings."
 fi
 
 # Verify critical settings to ensure they were applied correctly
-print_section "Verifying Critical Settings"
+echo -e "\nVerifying critical settings:"
+
+# Function to verify a sysctl parameter
+verify_sysctl() {
+  local param=$1
+  local expected_value=$2
+  local actual_value=$(sysctl -n "$param" 2>/dev/null)
+
+  if [ -z "$actual_value" ]; then
+    echo "⚠ Parameter $param does not exist or couldn't be read."
+    return 1
+  elif [ "$actual_value" != "$expected_value" ]; then
+    echo "⚠ Parameter $param has value '$actual_value' (expected '$expected_value')"
+    return 1
+  else
+    echo "✓ $param = $actual_value"
+    return 0
+  fi
+}
 
 # Network security verification
-print_info "Verifying network security settings..."
 verify_sysctl "net.ipv4.conf.all.rp_filter" "1"
 verify_sysctl "net.ipv4.tcp_syncookies" "1"
 verify_sysctl "net.ipv4.conf.all.accept_redirects" "0"
@@ -318,62 +238,37 @@ verify_sysctl "net.ipv4.conf.all.accept_source_route" "0"
 verify_sysctl "net.ipv4.ip_forward" "0"
 
 # Kernel hardening verification
-print_info "Verifying kernel hardening settings..."
 verify_sysctl "kernel.dmesg_restrict" "1"
 verify_sysctl "kernel.randomize_va_space" "2"
 verify_sysctl "kernel.yama.ptrace_scope" "3"
 
 # File system and memory protection verification
-print_info "Verifying file system and memory protection settings..."
 verify_sysctl "fs.suid_dumpable" "0"
 verify_sysctl "fs.protected_symlinks" "1"
 verify_sysctl "vm.swappiness" "1"
 
 # Check if systemd-sysctl service is running
-print_section "SystemD Service Status"
-echo -e "${CYAN}systemctl status systemd-sysctl${NC}"
+echo -e "\nChecking systemd-sysctl service status:"
 systemctl status systemd-sysctl --no-pager
 
 # Verify symbolic link for UFW compatibility
-print_section "UFW Compatibility Status"
+echo -e "\nVerifying UFW compatibility setup:"
 if [ -L "$SYSCTL_CONF" ] && [ "$(readlink -f "$SYSCTL_CONF")" = "$NETWORK_CONF" ]; then
-  print_success "Symbolic link is correctly set up from $SYSCTL_CONF to $NETWORK_CONF"
+  echo "✓ Symbolic link is correctly set up from $SYSCTL_CONF to $NETWORK_CONF"
 else
-  print_warning "Symbolic link verification failed"
+  echo "⚠ Symbolic link verification failed"
 fi
 
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Summary                                                          │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Summary"
-
-echo -e "${GREEN}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
-echo -e "${GREEN}${BOLD}│ Configuration Files Created                                   │${NC}"
-echo -e "${GREEN}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
-echo -e "  ${BOLD}Network Security:${NC} $NETWORK_CONF"
-echo -e "  ${BOLD}Kernel Hardening:${NC} $KERNEL_CONF"
-echo -e "  ${BOLD}File System & Memory:${NC} $FS_MEM_CONF"
-echo -e "  ${BOLD}Symbolic Link:${NC} $SYSCTL_CONF → $NETWORK_CONF"
-echo -e "  ${BOLD}Backup Directory:${NC} $BACKUP_DIR"
-
-echo -e "${BLUE}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
-echo -e "${BLUE}${BOLD}│ Verification Commands                                         │${NC}"
-echo -e "${BLUE}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
-echo -e "  ${CYAN}sudo sysctl --system${NC}           - Apply all sysctl settings"
-echo -e "  ${CYAN}sysctl -a | grep \"parameter_name\"${NC} - Check specific parameters"
-
-print_warning "Some kernel parameters may require a system reboot to take full effect."
-
-echo
-echo -e "${BRIGHT_BLUE}${BOLD}"
-cat <<"EOF"
-  ███████╗███████╗ ██████╗██╗   ██╗██████╗ ██╗████████╗██╗   ██╗    ███████╗███╗   ██╗██╗  ██╗ █████╗ ███╗   ██╗ ██████╗███████╗██████╗ 
-  ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██║╚══██╔══╝╚██╗ ██╔╝    ██╔════╝████╗  ██║██║  ██║██╔══██╗████╗  ██║██╔════╝██╔════╝██╔══██╗
-  ███████╗█████╗  ██║     ██║   ██║██████╔╝██║   ██║    ╚████╔╝     █████╗  ██╔██╗ ██║███████║███████║██╔██╗ ██║██║     █████╗  ██║  ██║
-  ╚════██║██╔══╝  ██║     ██║   ██║██╔══██╗██║   ██║     ╚██╔╝      ██╔══╝  ██║╚██╗██║██╔══██║██╔══██║██║╚██╗██║██║     ██╔══╝  ██║  ██║
-  ███████║███████╗╚██████╗╚██████╔╝██║  ██║██║   ██║      ██║       ███████╗██║ ╚████║██║  ██║██║  ██║██║ ╚████║╚██████╗███████╗██████╔╝
-  ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝   ╚═╝      ╚═╝       ╚══════╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝╚═════╝ 
-EOF
-echo -e "${NC}"
+echo -e "\n===== Kernel and Network Hardening Complete =====\n"
+echo "Configuration files created:"
+echo "  - $NETWORK_CONF"
+echo "  - $KERNEL_CONF"
+echo "  - $FS_MEM_CONF"
+echo "  - $SYSCTL_CONF (symbolic link to $NETWORK_CONF for UFW compatibility)"
+echo -e "\nTo verify all configured parameters manually, use:"
+echo "  sudo sysctl --system"
+echo "  sysctl -a | grep \"parameter_name\""
+echo -e "\nBackups of original configurations are stored in: $BACKUP_DIR"
+echo -e "\nNOTE: Some kernel parameters may require a system reboot to take full effect."
 
 exit 0
