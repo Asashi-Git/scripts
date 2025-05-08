@@ -1,78 +1,200 @@
 #!/bin/bash
 
-# Check if running as root
-if [ "$EUID" -ne 0 ]; then
-  echo "Please run as root"
-  exit 1
-fi
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  Web Server Hardening Script for Arch Linux                       ║
+# ║  This script configures an encrypted web server with NGINX        ║
+# ╚═══════════════════════════════════════════════════════════════════╝
 
-# Function to handle errors
-handle_error() {
-  echo "ERROR: $1"
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Colors for output formatting                                     │
+# └─────────────────────────────────────────────────────────────────┘
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+BRIGHT_BLUE='\033[1;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Utility functions                                                │
+# └─────────────────────────────────────────────────────────────────┘
+# Function to print section headers
+print_section() {
+  echo -e "\n${BLUE}${BOLD}╔════════════ $1 ════════════╗${NC}\n"
+}
+
+# Function to print information
+print_info() {
+  echo -e "${CYAN}${BOLD}[INFO]${NC} $1"
+}
+
+# Function to print step information (numbered steps)
+print_step() {
+  local step_num="$1"
+  local total_steps="$2"
+  local description="$3"
+  echo -e "${GREEN}${BOLD}[STEP ${step_num}/${total_steps}]${NC} ${description}"
+}
+
+# Function to print warnings
+print_warning() {
+  echo -e "${YELLOW}${BOLD}[WARNING]${NC} $1"
+}
+
+# Function to print errors
+print_error() {
+  echo -e "${RED}${BOLD}[ERROR]${NC} $1"
   exit 1
 }
 
-echo "========== Creating and Setting Up Encrypted HTTP Partition =========="
+# Function to print success messages
+print_success() {
+  echo -e "${GREEN}${BOLD}[SUCCESS]${NC} $1"
+}
 
-# Ask for the username
-echo -n "Enter the username for which to configure the auto-mount prompt (e.g., localadm): "
-read username
+# Function to get user confirmation
+confirm() {
+  local prompt="$1"
+  local answer
 
-# Validate that the user exists
-if ! id "$username" &>/dev/null; then
-  echo "User '$username' does not exist. Would you like to create this user? (y/n)"
-  read create_user
-  if [[ "$create_user" =~ ^[Yy]$ ]]; then
-    useradd -m "$username" || handle_error "Failed to create user"
-    echo "Setting password for new user '$username'"
-    passwd "$username" || handle_error "Failed to set password"
+  echo -ne "${CYAN}${prompt} (y/n): ${NC}"
+  read answer
+
+  if [[ "$answer" =~ ^[Yy]$ ]]; then
+    return 0
   else
-    handle_error "User does not exist. Please specify a valid username."
+    return 1
   fi
-fi
+}
 
-# Get the home directory of the user
-user_home=$(eval echo ~$username)
-if [ ! -d "$user_home" ]; then
-  handle_error "Home directory for user '$username' not found"
-fi
+# Function to handle errors
+handle_error() {
+  print_error "$1"
+  exit 1
+}
 
-echo "Using home directory: $user_home"
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Check if script is run as root                                   │
+# └─────────────────────────────────────────────────────────────────┘
+check_root() {
+  if [ "$EUID" -ne 0 ]; then
+    print_error "This script must be run as root"
+    exit 1
+  fi
+}
 
-# Step 1: Create the logical volume
-echo "[1/10] Creating logical volume 'httpdata'..."
-lvcreate -L 5G vg0 -n httpdata || handle_error "Failed to create logical volume"
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Main script                                                      │
+# └─────────────────────────────────────────────────────────────────┘
+main() {
+  # Display header
+  clear
+  echo
+  echo -e "${BRIGHT_BLUE}${BOLD}"
+  cat <<"EOF"
+  ███████╗███╗   ██╗ ██████╗██████╗ ██╗   ██╗██████╗ ████████╗███████╗██████╗     
+  ██╔════╝████╗  ██║██╔════╝██╔══██╗╚██╗ ██╔╝██╔══██╗╚══██╔══╝██╔════╝██╔══██╗    
+  █████╗  ██╔██╗ ██║██║     ██████╔╝ ╚████╔╝ ██████╔╝   ██║   █████╗  ██║  ██║    
+  ██╔══╝  ██║╚██╗██║██║     ██╔══██╗  ╚██╔╝  ██╔═══╝    ██║   ██╔══╝  ██║  ██║    
+  ███████╗██║ ╚████║╚██████╗██║  ██║   ██║   ██║        ██║   ███████╗██████╔╝    
+  ╚══════╝╚═╝  ╚═══╝ ╚═════╝╚═╝  ╚═╝   ╚═╝   ╚═╝        ╚═╝   ╚══════╝╚═════╝     
+                                                                                   
+  ██╗    ██╗███████╗██████╗     ███████╗███████╗██████╗ ██╗   ██╗███████╗██████╗ 
+  ██║    ██║██╔════╝██╔══██╗    ██╔════╝██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗
+  ██║ █╗ ██║█████╗  ██████╔╝    ███████╗█████╗  ██████╔╝██║   ██║█████╗  ██████╔╝
+  ██║███╗██║██╔══╝  ██╔══██╗    ╚════██║██╔══╝  ██╔══██╗╚██╗ ██╔╝██╔══╝  ██╔══██╗
+  ╚███╔███╔╝███████╗██████╔╝    ███████║███████╗██║  ██║ ╚████╔╝ ███████╗██║  ██║
+   ╚══╝╚══╝ ╚══════╝╚═════╝     ╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝
+EOF
+  echo -e "${NC}"
 
-# Step 2: Encrypt the logical volume
-echo "[2/10] Encrypting the volume (you will be prompted for a passphrase)..."
-echo "This will overwrite any data on /dev/vg0/httpdata. Are you sure? (y/n)"
-read confirmation
-if [[ "$confirmation" != "y" && "$confirmation" != "Y" ]]; then
-  echo "Operation cancelled"
-  exit 0
-fi
+  echo -e "${CYAN}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
+  echo -e "${CYAN}${BOLD}│ Encrypted Web Server Setup for Arch Linux                     │${NC}"
+  echo -e "${CYAN}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
+  echo -e "  ${GREEN}▶${NC} Creates a secure encrypted partition for web content"
+  echo -e "  ${GREEN}▶${NC} Configures NGINX with hardened settings"
+  echo -e "  ${GREEN}▶${NC} Sets up user-prompted mount for enhanced security"
+  echo -e "  ${GREEN}▶${NC} Implements proper ownership and permissions"
+  echo -e "  ${GREEN}▶${NC} Provides maintenance and fallback pages"
+  echo
 
-cryptsetup luksFormat /dev/vg0/httpdata || handle_error "Failed to encrypt volume"
+  TOTAL_STEPS=10
 
-# Step 3: Open the encrypted volume
-echo "[3/10] Opening the encrypted volume (please enter the passphrase)..."
-cryptsetup open /dev/vg0/httpdata crypthttp || handle_error "Failed to open encrypted volume"
+  # Check if running as root
+  check_root
 
-# Step 4: Format the partition
-echo "[4/10] Formatting the partition..."
-mkfs.ext4 /dev/mapper/crypthttp || handle_error "Failed to format partition"
+  # Ask for the username
+  print_section "User Configuration"
+  echo -ne "${CYAN}Enter the username for which to configure the auto-mount prompt (e.g., localadm): ${NC}"
+  read username
 
-# Step 5: Create mount points
-echo "[5/10] Creating mount points..."
-mkdir -p /data/http || handle_error "Failed to create mount points"
+  # Validate that the user exists
+  if ! id "$username" &>/dev/null; then
+    print_warning "User '$username' does not exist."
+    if confirm "Would you like to create this user?"; then
+      useradd -m "$username" || handle_error "Failed to create user"
+      print_info "Setting password for new user '$username'"
+      passwd "$username" || handle_error "Failed to set password"
+      print_success "User '$username' created successfully"
+    else
+      handle_error "User does not exist. Please specify a valid username."
+    fi
+  else
+    print_success "User '$username' exists"
+  fi
 
-# Step 6: Mount the partition
-echo "[6/10] Mounting the partition..."
-mount /dev/mapper/crypthttp /data/http || handle_error "Failed to mount partition"
+  # Get the home directory of the user
+  user_home=$(eval echo ~$username)
+  if [ ! -d "$user_home" ]; then
+    handle_error "Home directory for user '$username' not found"
+  fi
 
-# Step 7: Create script to mount encrypted partition
-echo "[7/10] Creating mount script..."
-cat >/usr/local/bin/mount-httpdata.sh <<'EOF'
+  print_info "Using home directory: ${BOLD}$user_home${NC}"
+
+  # Step 1: Create the logical volume
+  print_section "Logical Volume Setup"
+  print_step 1 $TOTAL_STEPS "Creating logical volume 'httpdata'..."
+  lvcreate -L 5G vg0 -n httpdata || handle_error "Failed to create logical volume"
+  print_success "Logical volume created"
+
+  # Step 2: Encrypt the logical volume
+  print_step 2 $TOTAL_STEPS "Encrypting the volume (you will be prompted for a passphrase)..."
+  print_warning "This will overwrite any data on /dev/vg0/httpdata."
+  if ! confirm "Are you sure you want to continue?"; then
+    echo -e "${YELLOW}Operation cancelled by user${NC}"
+    exit 0
+  fi
+
+  cryptsetup luksFormat /dev/vg0/httpdata || handle_error "Failed to encrypt volume"
+  print_success "Volume encrypted successfully"
+
+  # Step 3: Open the encrypted volume
+  print_step 3 $TOTAL_STEPS "Opening the encrypted volume..."
+  print_info "Please enter the encryption passphrase when prompted"
+  cryptsetup open /dev/vg0/httpdata crypthttp || handle_error "Failed to open encrypted volume"
+  print_success "Encrypted volume opened"
+
+  # Step 4: Format the partition
+  print_step 4 $TOTAL_STEPS "Formatting the partition..."
+  mkfs.ext4 /dev/mapper/crypthttp || handle_error "Failed to format partition"
+  print_success "Partition formatted with ext4"
+
+  # Step 5: Create mount points
+  print_step 5 $TOTAL_STEPS "Creating mount points..."
+  mkdir -p /data/http || handle_error "Failed to create mount points"
+  print_success "Mount points created"
+
+  # Step 6: Mount the partition
+  print_step 6 $TOTAL_STEPS "Mounting the partition..."
+  mount /dev/mapper/crypthttp /data/http || handle_error "Failed to mount partition"
+  print_success "Partition mounted at /data/http"
+
+  # Step 7: Create script to mount encrypted partition
+  print_step 7 $TOTAL_STEPS "Creating mount script..."
+  cat >/usr/local/bin/mount-httpdata.sh <<'EOF'
 #!/bin/bash
 
 # Check if already mounted
@@ -100,15 +222,16 @@ else
 fi
 EOF
 
-# Replace USERNAME placeholder with the actual username
-sed -i "s/USERNAME/$username/g" /usr/local/bin/mount-httpdata.sh
+  # Replace USERNAME placeholder with the actual username
+  sed -i "s/USERNAME/$username/g" /usr/local/bin/mount-httpdata.sh
 
-chmod +x /usr/local/bin/mount-httpdata.sh || handle_error "Failed to make script executable"
+  chmod +x /usr/local/bin/mount-httpdata.sh || handle_error "Failed to make script executable"
+  print_success "Mount script created: /usr/local/bin/mount-httpdata.sh"
 
-# Step 8: Update user profile to prompt for mounting
-echo "[8/10] Setting up autostart for user $username..."
-if [ -f "$user_home/.bash_profile" ]; then
-  grep -q "mount-httpdata.sh" "$user_home/.bash_profile" || cat >>"$user_home/.bash_profile" <<'EOF'
+  # Step 8: Update user profile to prompt for mounting
+  print_step 8 $TOTAL_STEPS "Setting up autostart for user $username..."
+  if [ -f "$user_home/.bash_profile" ]; then
+    grep -q "mount-httpdata.sh" "$user_home/.bash_profile" || cat >>"$user_home/.bash_profile" <<'EOF'
 
 # Check if HTTP partition is mounted
 if ! mountpoint -q /data/http; then
@@ -119,8 +242,8 @@ if ! mountpoint -q /data/http; then
     fi
 fi
 EOF
-else
-  cat >"$user_home/.bash_profile" <<'EOF'
+  else
+    cat >"$user_home/.bash_profile" <<'EOF'
 # Check if HTTP partition is mounted
 if ! mountpoint -q /data/http; then
     echo "HTTP data partition is not mounted."
@@ -130,28 +253,36 @@ if ! mountpoint -q /data/http; then
     fi
 fi
 EOF
-fi
+  fi
 
-chown $username:$username "$user_home/.bash_profile" || handle_error "Failed to set ownership for bash_profile"
+  chown $username:$username "$user_home/.bash_profile" || handle_error "Failed to set ownership for bash_profile"
+  print_success "Login prompt configured for user $username"
 
-# Step 9: Install and configure Nginx
-echo "[9/10] Installing and configuring Nginx..."
-pacman -Syu --noconfirm || handle_error "Failed to update system"
-pacman -S --noconfirm nginx git || handle_error "Failed to install required packages"
+  # Step 9: Install and configure Nginx
+  print_section "Web Server Configuration"
+  print_step 9 $TOTAL_STEPS "Installing and configuring Nginx..."
+  print_info "Updating system..."
+  pacman -Syu --noconfirm || handle_error "Failed to update system"
 
-# Create http group if it doesn't exist
-groupadd -f http
+  print_info "Installing Nginx and Git..."
+  pacman -S --noconfirm nginx git || handle_error "Failed to install required packages"
 
-# Ensure user is in the http group
-usermod -a -G http $username
+  # Create http group if it doesn't exist
+  groupadd -f http
 
-# Download maintenance page
-mkdir -p /usr/share/nginx/html
-curl -o /usr/share/nginx/html/maintenance.html https://raw.githubusercontent.com/Asashi-Git/scripts/main/maintenance.html 2>/dev/null
+  # Ensure user is in the http group
+  usermod -a -G http $username
+  print_success "Added user $username to the http group"
 
-# If curl fails, create a basic maintenance page
-if [ ! -f /usr/share/nginx/html/maintenance.html ]; then
-  cat >/usr/share/nginx/html/maintenance.html <<'EOF'
+  # Download maintenance page
+  print_info "Setting up maintenance page..."
+  mkdir -p /usr/share/nginx/html
+  curl -o /usr/share/nginx/html/maintenance.html https://raw.githubusercontent.com/Asashi-Git/scripts/main/maintenance.html 2>/dev/null
+
+  # If curl fails, create a basic maintenance page
+  if [ ! -f /usr/share/nginx/html/maintenance.html ]; then
+    print_warning "Failed to download maintenance page, creating a basic one"
+    cat >/usr/share/nginx/html/maintenance.html <<'EOF'
 <!DOCTYPE html>
 <html>
 <head>
@@ -168,10 +299,11 @@ if [ ! -f /usr/share/nginx/html/maintenance.html ]; then
 </body>
 </html>
 EOF
-fi
+  fi
 
-# Configure Nginx
-cat >/etc/nginx/nginx.conf <<'EOF'
+  # Configure Nginx
+  print_info "Configuring Nginx..."
+  cat >/etc/nginx/nginx.conf <<'EOF'
 #user http;
 worker_processes 1;
 
@@ -296,20 +428,24 @@ http {
 
 }
 EOF
+  print_success "Nginx configured"
 
-# Step 10: Set up website content
-echo "[10/10] Setting up website content..."
-pushd /tmp >/dev/null
+  # Step 10: Set up website content
+  print_step 10 $TOTAL_STEPS "Setting up website content..."
+  pushd /tmp >/dev/null
 
-# Try to clone the repository
-git clone https://github.com/Asashi-Git/encrypted-arch-linux.git 2>/dev/null
-if [ -d encrypted-arch-linux ]; then
-  # If clone succeeded
-  mv encrypted-arch-linux /data/http/ || handle_error "Failed to move website files"
-else
-  # Create placeholder content if git clone fails
-  mkdir -p /data/http/encrypted-arch-linux
-  cat >/data/http/encrypted-arch-linux/encrypted-arch-linux.html <<'EOF'
+  # Try to clone the repository
+  print_info "Attempting to clone website content..."
+  git clone https://github.com/Asashi-Git/encrypted-arch-linux.git 2>/dev/null
+  if [ -d encrypted-arch-linux ]; then
+    # If clone succeeded
+    print_success "Content downloaded successfully"
+    mv encrypted-arch-linux /data/http/ || handle_error "Failed to move website files"
+  else
+    # Create placeholder content if git clone fails
+    print_warning "Could not download content, creating placeholder"
+    mkdir -p /data/http/encrypted-arch-linux
+    cat >/data/http/encrypted-arch-linux/encrypted-arch-linux.html <<'EOF'
 <!DOCTYPE html>
 <html>
 <head>
@@ -329,46 +465,81 @@ else
 </body>
 </html>
 EOF
-fi
+  fi
 
-popd >/dev/null
+  popd >/dev/null
 
-# Set proper permissions
-chown -R $username:http /data/http
-chmod -R 750 /data/http
+  # Set proper permissions
+  print_info "Setting correct permissions..."
+  chown -R $username:http /data/http
+  chmod -R 750 /data/http
 
-# Enable and start Nginx
-systemctl enable nginx
-systemctl restart nginx
+  # Enable and start Nginx
+  print_info "Enabling and starting Nginx..."
+  systemctl enable nginx
+  systemctl restart nginx
 
-# Configure sudo permissions for mount script
-if ! grep -q "mount-httpdata.sh" /etc/sudoers.d/*; then
-  echo "$username ALL=(ALL) NOPASSWD: /usr/local/bin/mount-httpdata.sh" >"/etc/sudoers.d/$username" || handle_error "Failed to update sudoers"
-  chmod 440 "/etc/sudoers.d/$username"
-fi
+  # Configure sudo permissions for mount script
+  print_info "Configuring sudo permissions for mount script..."
+  if ! grep -q "mount-httpdata.sh" /etc/sudoers.d/*; then
+    echo "$username ALL=(ALL) NOPASSWD: /usr/local/bin/mount-httpdata.sh" >"/etc/sudoers.d/$username" || handle_error "Failed to update sudoers"
+    chmod 440 "/etc/sudoers.d/$username"
+    print_success "Sudo permissions configured"
+  else
+    print_info "Sudo permissions already configured"
+  fi
 
-# Final message
-echo ""
-echo "========== Setup Complete =========="
-echo "Encrypted HTTP partition has been created and configured."
-echo "When user '$username' logs in, they will be prompted to mount the encrypted partition."
-echo "To manually mount the partition, run: sudo /usr/local/bin/mount-httpdata.sh"
-echo ""
-echo "Nginx has been configured to serve content from /data/http/encrypted-arch-linux"
-echo ""
+  # Final summary
+  print_section "Setup Complete"
 
-# Let user know if partition will be unmounted at reboot
-if ! grep -q "crypthttp" /etc/crypttab; then
-  echo "NOTE: The encrypted partition will not be automatically unlocked at boot."
-  echo "To make it persistent across reboots, add an entry to /etc/crypttab and /etc/fstab."
-  echo ""
-fi
+  echo -e "${GREEN}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
+  echo -e "${GREEN}${BOLD}│ Encrypted Web Server Configuration Complete                   │${NC}"
+  echo -e "${GREEN}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
+  echo -e
+  echo -e "  ${GREEN}✓${NC} Encrypted HTTP partition has been created and configured"
+  echo -e "  ${GREEN}✓${NC} User '$username' will be prompted to mount the partition at login"
+  echo -e "  ${GREEN}✓${NC} Nginx has been configured to serve content from /data/http/encrypted-arch-linux"
+  echo -e "  ${GREEN}✓${NC} Mount script is available at: /usr/local/bin/mount-httpdata.sh"
+  echo
 
-# Final check if everything is working
-if mountpoint -q /data/http && systemctl is-active --quiet nginx; then
-  echo "All services are running correctly!"
-else
-  echo "WARNING: There may be issues with the setup. Please check the logs."
-fi
+  # Let user know if partition will be unmounted at reboot
+  if ! grep -q "crypthttp" /etc/crypttab; then
+    echo -e "${YELLOW}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${YELLOW}${BOLD}│ Important Notes                                                │${NC}"
+    echo -e "${YELLOW}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
+    echo -e "  ${YELLOW}!${NC} The encrypted partition will not be automatically unlocked at boot"
+    echo -e "  ${YELLOW}!${NC} To make it persistent across reboots, add entries to:"
+    echo -e "     - /etc/crypttab"
+    echo -e "     - /etc/fstab"
+    echo
+  fi
 
-exit 0
+  # Final check if everything is working
+  if mountpoint -q /data/http && systemctl is-active --quiet nginx; then
+    echo -e "${GREEN}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${GREEN}${BOLD}│ Status: All services are running correctly!                    │${NC}"
+    echo -e "${GREEN}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
+  else
+    echo -e "${YELLOW}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${YELLOW}${BOLD}│ Warning: There may be issues with the setup                    │${NC}"
+    echo -e "${YELLOW}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
+    echo -e "  ${YELLOW}!${NC} Please check the logs for more information:"
+    echo -e "     - Nginx logs: /var/log/nginx/error.log"
+    echo -e "     - System logs: journalctl -xe"
+  fi
+
+  echo
+  echo -e "${BRIGHT_BLUE}${BOLD}"
+  cat <<"EOF"
+  ███████╗███████╗ ██████╗██╗   ██╗██████╗ ██╗████████╗██╗   ██╗    ███████╗███╗   ██╗██╗  ██╗ █████╗ ███╗   ██╗ ██████╗███████╗██████╗ 
+  ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██║╚══██╔══╝╚██╗ ██╔╝    ██╔════╝████╗  ██║██║  ██║██╔══██╗████╗  ██║██╔════╝██╔════╝██╔══██╗
+  ███████╗█████╗  ██║     ██║   ██║██████╔╝██║   ██║    ╚████╔╝     █████╗  ██╔██╗ ██║███████║███████║██╔██╗ ██║██║     █████╗  ██║  ██║
+  ╚════██║██╔══╝  ██║     ██║   ██║██╔══██╗██║   ██║     ╚██╔╝      ██╔══╝  ██║╚██╗██║██╔══██║██╔══██║██║╚██╗██║██║     ██╔══╝  ██║  ██║
+  ███████║███████╗╚██████╗╚██████╔╝██║  ██║██║   ██║      ██║       ███████╗██║ ╚████║██║  ██║██║  ██║██║ ╚████║╚██████╗███████╗██████╔╝
+  ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝   ╚═╝      ╚═╝       ╚══════╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝╚═════╝ 
+EOF
+  echo -e "${NC}"
+}
+
+# Execute main function
+main
