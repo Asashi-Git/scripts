@@ -534,7 +534,8 @@ echo "LANG=\$locale" > /etc/locale.conf
 # │ Hostname selection                                               │
 # └─────────────────────────────────────────────────────────────────┘
 print_section "Hostname Configuration"
-read -p "\$(echo -e \${CYAN}Enter the Hostname for this system: \${NC})" hostname
+read =p "Enter hostname for this system: " hostname
+#read -p "\$(echo -e \${CYAN}Enter the Hostname for this system: \${NC})" hostname
 echo "\$hostname" > /etc/hostname
 
 # ┌─────────────────────────────────────────────────────────────────┐
