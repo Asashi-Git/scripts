@@ -2,14 +2,14 @@
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
-  echo "Please run as root"
-  exit 1
+	echo "Please run as root"
+	exit 1
 fi
 
 # Function to handle errors
 handle_error() {
-  echo "ERROR: $1"
-  exit 1
+	echo "ERROR: $1"
+	exit 1
 }
 
 echo "========== Creating and Setting Up Encrypted HTTP Partition =========="
@@ -20,21 +20,21 @@ read username
 
 # Validate that the user exists
 if ! id "$username" &>/dev/null; then
-  echo "User '$username' does not exist. Would you like to create this user? (y/n)"
-  read create_user
-  if [[ "$create_user" =~ ^[Yy]$ ]]; then
-    useradd -m "$username" || handle_error "Failed to create user"
-    echo "Setting password for new user '$username'"
-    passwd "$username" || handle_error "Failed to set password"
-  else
-    handle_error "User does not exist. Please specify a valid username."
-  fi
+	echo "User '$username' does not exist. Would you like to create this user? (y/n)"
+	read create_user
+	if [[ "$create_user" =~ ^[Yy]$ ]]; then
+		useradd -m "$username" || handle_error "Failed to create user"
+		echo "Setting password for new user '$username'"
+		passwd "$username" || handle_error "Failed to set password"
+	else
+		handle_error "User does not exist. Please specify a valid username."
+	fi
 fi
 
 # Get the home directory of the user
 user_home=$(eval echo ~$username)
 if [ ! -d "$user_home" ]; then
-  handle_error "Home directory for user '$username' not found"
+	handle_error "Home directory for user '$username' not found"
 fi
 
 echo "Using home directory: $user_home"
@@ -48,8 +48,8 @@ echo "[2/10] Encrypting the volume (you will be prompted for a passphrase)..."
 echo "This will overwrite any data on /dev/vg0/httpdata. Are you sure? (y/n)"
 read confirmation
 if [[ "$confirmation" != "y" && "$confirmation" != "Y" ]]; then
-  echo "Operation cancelled"
-  exit 0
+	echo "Operation cancelled"
+	exit 0
 fi
 
 cryptsetup luksFormat /dev/vg0/httpdata || handle_error "Failed to encrypt volume"
@@ -108,7 +108,7 @@ chmod +x /usr/local/bin/mount-httpdata.sh || handle_error "Failed to make script
 # Step 8: Update user profile to prompt for mounting
 echo "[8/10] Setting up autostart for user $username..."
 if [ -f "$user_home/.bash_profile" ]; then
-  grep -q "mount-httpdata.sh" "$user_home/.bash_profile" || cat >>"$user_home/.bash_profile" <<'EOF'
+	grep -q "mount-httpdata.sh" "$user_home/.bash_profile" || cat >>"$user_home/.bash_profile" <<'EOF'
 
 # Check if HTTP partition is mounted
 if ! mountpoint -q /data/http; then
@@ -120,7 +120,7 @@ if ! mountpoint -q /data/http; then
 fi
 EOF
 else
-  cat >"$user_home/.bash_profile" <<'EOF'
+	cat >"$user_home/.bash_profile" <<'EOF'
 # Check if HTTP partition is mounted
 if ! mountpoint -q /data/http; then
     echo "HTTP data partition is not mounted."
@@ -151,7 +151,7 @@ curl -o /usr/share/nginx/html/maintenance.html https://raw.githubusercontent.com
 
 # If curl fails, create a basic maintenance page
 if [ ! -f /usr/share/nginx/html/maintenance.html ]; then
-  cat >/usr/share/nginx/html/maintenance.html <<'EOF'
+	cat >/usr/share/nginx/html/maintenance.html <<'EOF'
 <!DOCTYPE html>
 <html>
 <head>
@@ -304,12 +304,12 @@ pushd /tmp >/dev/null
 # Try to clone the repository
 git clone https://github.com/Asashi-Git/encrypted-arch-linux.git 2>/dev/null
 if [ -d encrypted-arch-linux ]; then
-  # If clone succeeded
-  mv encrypted-arch-linux /data/http/ || handle_error "Failed to move website files"
+	# If clone succeeded
+	mv encrypted-arch-linux /data/http/ || handle_error "Failed to move website files"
 else
-  # Create placeholder content if git clone fails
-  mkdir -p /data/http/encrypted-arch-linux
-  cat >/data/http/encrypted-arch-linux/encrypted-arch-linux.html <<'EOF'
+	# Create placeholder content if git clone fails
+	mkdir -p /data/http/encrypted-arch-linux
+	cat >/data/http/encrypted-arch-linux/encrypted-arch-linux.html <<'EOF'
 <!DOCTYPE html>
 <html>
 <head>
@@ -343,8 +343,8 @@ systemctl restart nginx
 
 # Configure sudo permissions for mount script
 if ! grep -q "mount-httpdata.sh" /etc/sudoers.d/*; then
-  echo "$username ALL=(ALL) NOPASSWD: /usr/local/bin/mount-httpdata.sh" >"/etc/sudoers.d/$username" || handle_error "Failed to update sudoers"
-  chmod 440 "/etc/sudoers.d/$username"
+	echo "$username ALL=(ALL) NOPASSWD: /usr/local/bin/mount-httpdata.sh" >"/etc/sudoers.d/$username" || handle_error "Failed to update sudoers"
+	chmod 440 "/etc/sudoers.d/$username"
 fi
 
 # Final message
@@ -359,16 +359,16 @@ echo ""
 
 # Let user know if partition will be unmounted at reboot
 if ! grep -q "crypthttp" /etc/crypttab; then
-  echo "NOTE: The encrypted partition will not be automatically unlocked at boot."
-  echo "To make it persistent across reboots, add an entry to /etc/crypttab and /etc/fstab."
-  echo ""
+	echo "NOTE: The encrypted partition will not be automatically unlocked at boot."
+	echo "To make it persistent across reboots, add an entry to /etc/crypttab and /etc/fstab."
+	echo ""
 fi
 
 # Final check if everything is working
 if mountpoint -q /data/http && systemctl is-active --quiet nginx; then
-  echo "All services are running correctly!"
+	echo "All services are running correctly!"
 else
-  echo "WARNING: There may be issues with the setup. Please check the logs."
+	echo "WARNING: There may be issues with the setup. Please check the logs."
 fi
 
 exit 0
