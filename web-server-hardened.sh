@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║  Encrypted Web Server Configuration                               ║
-# ║  Sets up an encrypted partition for web server data               ║
+# ║  Web Server Hardening Script for Arch Linux                       ║
+# ║  This script configures an encrypted web server with NGINX        ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -14,57 +14,93 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 BRIGHT_BLUE='\033[1;34m'
 CYAN='\033[0;36m'
-MAGENTA='\033[0;35m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Utility functions                                                │
 # └─────────────────────────────────────────────────────────────────┘
+# Function to print section headers
 print_section() {
-  echo -e "\n${BLUE}${BOLD}╔════════════ $1 ════════════╗${NC}\n"
+	echo -e "\n${BLUE}${BOLD}╔════════════ $1 ════════════╗${NC}\n"
 }
 
+# Function to print information
 print_info() {
-  echo -e "${CYAN}${BOLD}[INFO]${NC} $1"
+	echo -e "${CYAN}${BOLD}[INFO]${NC} $1"
 }
 
+# Function to print step information (numbered steps)
 print_step() {
-  echo -e "${MAGENTA}${BOLD}[STEP $1/10]${NC} $2"
+	local step_num="$1"
+	local total_steps="$2"
+	local description="$3"
+	echo -e "${GREEN}${BOLD}[STEP ${step_num}/${total_steps}]${NC} ${description}"
 }
 
-print_success() {
-  echo -e "${GREEN}${BOLD}[SUCCESS]${NC} $1"
-}
-
-print_error() {
-  echo -e "${RED}${BOLD}[ERROR]${NC} $1"
-  exit 1
-}
-
+# Function to print warnings
 print_warning() {
-  echo -e "${YELLOW}${BOLD}[WARNING]${NC} $1"
+	echo -e "${YELLOW}${BOLD}[WARNING]${NC} $1"
 }
 
-# Check if running as root
-if [ "$EUID" -ne 0 ]; then
-  print_error "Please run as root"
-fi
+# Function to print errors
+print_error() {
+	echo -e "${RED}${BOLD}[ERROR]${NC} $1"
+	exit 1
+}
+
+# Function to print success messages
+print_success() {
+	echo -e "${GREEN}${BOLD}[SUCCESS]${NC} $1"
+}
+
+# Function to get user confirmation
+confirm() {
+	local prompt="$1"
+	local answer
+
+	echo -ne "${CYAN}${prompt} (y/n): ${NC}"
+	read answer
+
+	if [[ "$answer" =~ ^[Yy]$ ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
 
 # Function to handle errors
 handle_error() {
-  print_error "$1"
+	print_error "$1"
+	exit 1
 }
 
-# Display banner
-echo -e "${BRIGHT_BLUE}${BOLD}"
-cat <<"EOF"
-  ███████╗███╗   ██╗ ██████╗██████╗ ██╗   ██╗██████╗ ████████╗███████╗██████╗ 
-  ██╔════╝████╗  ██║██╔════╝██╔══██╗╚██╗ ██╔╝██╔══██╗╚══██╔══╝██╔════╝██╔══██╗
-  █████╗  ██╔██╗ ██║██║     ██████╔╝ ╚████╔╝ ██████╔╝   ██║   █████╗  ██║  ██║
-  ██╔══╝  ██║╚██╗██║██║     ██╔══██╗  ╚██╔╝  ██╔═══╝    ██║   ██╔══╝  ██║  ██║
-  ███████╗██║ ╚████║╚██████╗██║  ██║   ██║   ██║        ██║   ███████╗██████╔╝
-  ╚══════╝╚═╝  ╚═══╝ ╚═════╝╚═╝  ╚═╝   ╚═╝   ╚═╝        ╚═╝   ╚══════╝╚═════╝  
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Check if script is run as root                                   │
+# └─────────────────────────────────────────────────────────────────┘
+check_root() {
+	if [ "$EUID" -ne 0 ]; then
+		print_error "This script must be run as root"
+		exit 1
+	fi
+}
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Main script                                                      │
+# └─────────────────────────────────────────────────────────────────┘
+main() {
+	# Display header
+	clear
+	echo
+	echo -e "${BRIGHT_BLUE}${BOLD}"
+	cat <<"EOF"
+  ███████╗███╗   ██╗ ██████╗██████╗ ██╗   ██╗██████╗ ████████╗███████╗██████╗     
+  ██╔════╝████╗  ██║██╔════╝██╔══██╗╚██╗ ██╔╝██╔══██╗╚══██╔══╝██╔════╝██╔══██╗    
+  █████╗  ██╔██╗ ██║██║     ██████╔╝ ╚████╔╝ ██████╔╝   ██║   █████╗  ██║  ██║    
+  ██╔══╝  ██║╚██╗██║██║     ██╔══██╗  ╚██╔╝  ██╔═══╝    ██║   ██╔══╝  ██║  ██║    
+  ███████╗██║ ╚████║╚██████╗██║  ██║   ██║   ██║        ██║   ███████╗██████╔╝    
+  ╚══════╝╚═╝  ╚═══╝ ╚═════╝╚═╝  ╚═╝   ╚═╝   ╚═╝        ╚═╝   ╚══════╝╚═════╝     
+                                                                                   
   ██╗    ██╗███████╗██████╗     ███████╗███████╗██████╗ ██╗   ██╗███████╗██████╗ 
   ██║    ██║██╔════╝██╔══██╗    ██╔════╝██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗
   ██║ █╗ ██║█████╗  ██████╔╝    ███████╗█████╗  ██████╔╝██║   ██║█████╗  ██████╔╝
@@ -72,82 +108,92 @@ cat <<"EOF"
   ╚███╔███╔╝███████╗██████╔╝    ███████║███████╗██║  ██║ ╚████╔╝ ███████╗██║  ██║
    ╚══╝╚══╝ ╚══════╝╚═════╝     ╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝
 EOF
-echo -e "${NC}"
+	echo -e "${NC}"
 
-echo -e "${ORANGE}${BOLD}"
-cat <<"EOF"
-  ██████╗ ██╗   ██╗    ██████╗ ███████╗ ██████╗ █████╗ ██████╗ ███╗   ██╗███████╗██╗     ██╗     ███████╗    ███████╗ █████╗ ███╗   ███╗██╗   ██╗███████╗██╗     
-  ██╔══██╗╚██╗ ██╔╝    ██╔══██╗██╔════╝██╔════╝██╔══██╗██╔══██╗████╗  ██║██╔════╝██║     ██║     ██╔════╝    ██╔════╝██╔══██╗████╗ ████║██║   ██║██╔════╝██║     
-  ██████╔╝ ╚████╔╝     ██║  ██║█████╗  ██║     ███████║██████╔╝██╔██╗ ██║█████╗  ██║     ██║     █████╗      ███████╗███████║██╔████╔██║██║   ██║█████╗  ██║     
-  ██╔══██╗  ╚██╔╝      ██║  ██║██╔══╝  ██║     ██╔══██║██╔══██╗██║╚██╗██║██╔══╝  ██║     ██║     ██╔══╝      ╚════██║██╔══██║██║╚██╔╝██║██║   ██║██╔══╝  ██║     
-  ██████╔╝   ██║       ██████╔╝███████╗╚██████╗██║  ██║██║  ██║██║ ╚████║███████╗███████╗███████╗███████╗    ███████║██║  ██║██║ ╚═╝ ██║╚██████╔╝███████╗███████╗
-  ╚═════╝    ╚═╝       ╚═════╝ ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝╚══════╝╚══════╝    ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚══════╝
-EOF
-echo -e "${NC}"
+	echo -e "${CYAN}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
+	echo -e "${CYAN}${BOLD}│ Encrypted Web Server Setup for Arch Linux                     │${NC}"
+	echo -e "${CYAN}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
+	echo -e "  ${GREEN}▶${NC} Creates a secure encrypted partition for web content"
+	echo -e "  ${GREEN}▶${NC} Configures NGINX with hardened settings"
+	echo -e "  ${GREEN}▶${NC} Sets up user-prompted mount for enhanced security"
+	echo -e "  ${GREEN}▶${NC} Implements proper ownership and permissions"
+	echo -e "  ${GREEN}▶${NC} Provides maintenance and fallback pages"
+	echo
 
-print_section "Creating and Setting Up Encrypted HTTP Partition"
+	TOTAL_STEPS=10
 
-# Ask for the username
-echo -n "Enter the username for which to configure the auto-mount prompt (e.g., localadm): "
-read username
+	# Check if running as root
+	check_root
 
-# Validate that the user exists
-if ! id "$username" &>/dev/null; then
-  print_warning "User '$username' does not exist"
-  echo "Would you like to create this user? (y/n)"
-  read create_user
-  if [[ "$create_user" =~ ^[Yy]$ ]]; then
-    useradd -m "$username" || handle_error "Failed to create user"
-    echo "Setting password for new user '$username'"
-    passwd "$username" || handle_error "Failed to set password"
-    print_success "User created successfully"
-  else
-    handle_error "User does not exist. Please specify a valid username."
-  fi
-fi
+	# Ask for the username
+	print_section "User Configuration"
+	echo -ne "${CYAN}Enter the username for which to configure the auto-mount prompt (e.g., localadm): ${NC}"
+	read username
 
-# Get the home directory of the user
-user_home=$(eval echo ~$username)
-if [ ! -d "$user_home" ]; then
-  handle_error "Home directory for user '$username' not found"
-fi
+	# Validate that the user exists
+	if ! id "$username" &>/dev/null; then
+		print_warning "User '$username' does not exist."
+		if confirm "Would you like to create this user?"; then
+			useradd -m "$username" || handle_error "Failed to create user"
+			print_info "Setting password for new user '$username'"
+			passwd "$username" || handle_error "Failed to set password"
+			print_success "User '$username' created successfully"
+		else
+			handle_error "User does not exist. Please specify a valid username."
+		fi
+	else
+		print_success "User '$username' exists"
+	fi
 
-print_info "Using home directory: $user_home"
+	# Get the home directory of the user
+	user_home=$(eval echo ~$username)
+	if [ ! -d "$user_home" ]; then
+		handle_error "Home directory for user '$username' not found"
+	fi
 
-# Step 1: Create the logical volume
-print_step "1" "Creating logical volume 'httpdata'..."
-lvcreate -L 5G vg0 -n httpdata || handle_error "Failed to create logical volume"
+	print_info "Using home directory: ${BOLD}$user_home${NC}"
 
-# Step 2: Encrypt the logical volume
-print_step "2" "Encrypting the volume (you will be prompted for a passphrase)..."
-echo "This will overwrite any data on /dev/vg0/httpdata. Are you sure? (y/n)"
-read confirmation
-if [[ "$confirmation" != "y" && "$confirmation" != "Y" ]]; then
-  echo "Operation cancelled"
-  exit 0
-fi
+	# Step 1: Create the logical volume
+	print_section "Logical Volume Setup"
+	print_step 1 $TOTAL_STEPS "Creating logical volume 'httpdata'..."
+	lvcreate -L 5G vg0 -n httpdata || handle_error "Failed to create logical volume"
+	print_success "Logical volume created"
 
-cryptsetup luksFormat /dev/vg0/httpdata || handle_error "Failed to encrypt volume"
+	# Step 2: Encrypt the logical volume
+	print_step 2 $TOTAL_STEPS "Encrypting the volume (you will be prompted for a passphrase)..."
+	print_warning "This will overwrite any data on /dev/vg0/httpdata."
+	if ! confirm "Are you sure you want to continue?"; then
+		echo -e "${YELLOW}Operation cancelled by user${NC}"
+		exit 0
+	fi
 
-# Step 3: Open the encrypted volume
-print_step "3" "Opening the encrypted volume (please enter the passphrase)..."
-cryptsetup open /dev/vg0/httpdata crypthttp || handle_error "Failed to open encrypted volume"
+	cryptsetup luksFormat /dev/vg0/httpdata || handle_error "Failed to encrypt volume"
+	print_success "Volume encrypted successfully"
 
-# Step 4: Format the partition
-print_step "4" "Formatting the partition..."
-mkfs.ext4 /dev/mapper/crypthttp || handle_error "Failed to format partition"
+	# Step 3: Open the encrypted volume
+	print_step 3 $TOTAL_STEPS "Opening the encrypted volume..."
+	print_info "Please enter the encryption passphrase when prompted"
+	cryptsetup open /dev/vg0/httpdata crypthttp || handle_error "Failed to open encrypted volume"
+	print_success "Encrypted volume opened"
 
-# Step 5: Create mount points
-print_step "5" "Creating mount points..."
-mkdir -p /data/http || handle_error "Failed to create mount points"
+	# Step 4: Format the partition
+	print_step 4 $TOTAL_STEPS "Formatting the partition..."
+	mkfs.ext4 /dev/mapper/crypthttp || handle_error "Failed to format partition"
+	print_success "Partition formatted with ext4"
 
-# Step 6: Mount the partition
-print_step "6" "Mounting the partition..."
-mount /dev/mapper/crypthttp /data/http || handle_error "Failed to mount partition"
+	# Step 5: Create mount points
+	print_step 5 $TOTAL_STEPS "Creating mount points..."
+	mkdir -p /data/http || handle_error "Failed to create mount points"
+	print_success "Mount points created"
 
-# Step 7: Create script to mount encrypted partition
-print_step "7" "Creating mount script..."
-cat >/usr/local/bin/mount-httpdata.sh <<'EOF'
+	# Step 6: Mount the partition
+	print_step 6 $TOTAL_STEPS "Mounting the partition..."
+	mount /dev/mapper/crypthttp /data/http || handle_error "Failed to mount partition"
+	print_success "Partition mounted at /data/http"
+
+	# Step 7: Create script to mount encrypted partition
+	print_step 7 $TOTAL_STEPS "Creating mount script..."
+	cat >/usr/local/bin/mount-httpdata.sh <<'EOF'
 #!/bin/bash
 
 # Check if already mounted
@@ -175,15 +221,16 @@ else
 fi
 EOF
 
-# Replace USERNAME placeholder with the actual username
-sed -i "s/USERNAME/$username/g" /usr/local/bin/mount-httpdata.sh
+	# Replace USERNAME placeholder with the actual username
+	sed -i "s/USERNAME/$username/g" /usr/local/bin/mount-httpdata.sh
 
-chmod +x /usr/local/bin/mount-httpdata.sh || handle_error "Failed to make script executable"
+	chmod +x /usr/local/bin/mount-httpdata.sh || handle_error "Failed to make script executable"
+	print_success "Mount script created: /usr/local/bin/mount-httpdata.sh"
 
-# Step 8: Update user profile to prompt for mounting
-print_step "8" "Setting up autostart for user $username..."
-if [ -f "$user_home/.bash_profile" ]; then
-  grep -q "mount-httpdata.sh" "$user_home/.bash_profile" || cat >>"$user_home/.bash_profile" <<'EOF'
+	# Step 8: Update user profile to prompt for mounting
+	print_step 8 $TOTAL_STEPS "Setting up autostart for user $username..."
+	if [ -f "$user_home/.bash_profile" ]; then
+		grep -q "mount-httpdata.sh" "$user_home/.bash_profile" || cat >>"$user_home/.bash_profile" <<'EOF'
 
 # Check if HTTP partition is mounted
 if ! mountpoint -q /data/http; then
@@ -194,8 +241,8 @@ if ! mountpoint -q /data/http; then
     fi
 fi
 EOF
-else
-  cat >"$user_home/.bash_profile" <<'EOF'
+	else
+		cat >"$user_home/.bash_profile" <<'EOF'
 # Check if HTTP partition is mounted
 if ! mountpoint -q /data/http; then
     echo "HTTP data partition is not mounted."
@@ -205,192 +252,284 @@ if ! mountpoint -q /data/http; then
     fi
 fi
 EOF
-fi
+	fi
 
-# Step 9: Check if Nginx is installed and install if needed
-print_step "9" "Checking for Nginx..."
-if ! pacman -Q nginx &>/dev/null; then
-  print_warning "Nginx is not installed"
-  echo "Would you like to install Nginx now? (y/n)"
-  read install_nginx
-  if [[ "$install_nginx" =~ ^[Yy]$ ]]; then
-    pacman -Sy --noconfirm nginx || handle_error "Failed to install Nginx"
-    print_success "Nginx installed successfully"
-  else
-    print_warning "Skipping Nginx installation. You will need to install it later."
-  fi
-fi
+	chown $username:$username "$user_home/.bash_profile" || handle_error "Failed to set ownership for bash_profile"
+	print_success "Login prompt configured for user $username"
 
-# Step 10: Create a sample website in the mounted directory
-print_step "10" "Setting up sample website..."
-mkdir -p /data/http/encrypted-arch-linux
-if [ -d "/data/http/encrypted-arch-linux" ]; then
-  cat >/data/http/encrypted-arch-linux/index.html <<'EOF'
+	# Step 9: Install and configure Nginx
+	print_section "Web Server Configuration"
+	print_step 9 $TOTAL_STEPS "Installing and configuring Nginx..."
+	print_info "Updating system..."
+	pacman -Syu --noconfirm || handle_error "Failed to update system"
+
+	print_info "Installing Nginx and Git..."
+	pacman -S --noconfirm nginx git || handle_error "Failed to install required packages"
+
+	# Create http group if it doesn't exist
+	groupadd -f http
+
+	# Ensure user is in the http group
+	usermod -a -G http $username
+	print_success "Added user $username to the http group"
+
+	# Download maintenance page
+	print_info "Setting up maintenance page..."
+	mkdir -p /usr/share/nginx/html
+	curl -o /usr/share/nginx/html/maintenance.html https://raw.githubusercontent.com/Asashi-Git/scripts/main/maintenance.html 2>/dev/null
+
+	# If curl fails, create a basic maintenance page
+	if [ ! -f /usr/share/nginx/html/maintenance.html ]; then
+		print_warning "Failed to download maintenance page, creating a basic one"
+		cat >/usr/share/nginx/html/maintenance.html <<'EOF'
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Encrypted Arch Linux Server</title>
+    <title>Site Under Maintenance</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 0;
-            background: #f4f4f4;
-            color: #333;
-        }
-        .container {
-            width: 80%;
-            margin: 0 auto;
-            overflow: hidden;
-            padding: 20px;
-        }
-        header {
-            background: #0088cc;
-            color: white;
-            padding: 20px;
-            text-align: center;
-        }
-        .content {
-            background: white;
-            padding: 20px;
-            margin-top: 20px;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        .success {
-            color: #0088cc;
-            font-weight: bold;
-        }
+        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+        h1 { color: #444; }
+        p { color: #666; }
     </style>
 </head>
 <body>
-    <header>
-        <h1>Encrypted Arch Linux Web Server</h1>
-    </header>
+    <h1>We'll be back soon!</h1>
+    <p>Sorry for the inconvenience. We're performing some maintenance at the moment.</p>
+</body>
+</html>
+EOF
+	fi
+
+	# Configure Nginx
+	print_info "Configuring Nginx..."
+	cat >/etc/nginx/nginx.conf <<'EOF'
+#user http;
+worker_processes 1;
+
+#error_log  logs/error.log;
+#error_log  logs/error.log  notice;
+#error_log  logs/error.log  info;
+
+#pid        logs/nginx.pid;
+
+# Load all installed modules
+include modules.d/*.conf;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+
+    #log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+    #                  '$status $body_bytes_sent "$http_referer" '
+    #                  '"$http_user_agent" "$http_x_forwarded_for"';
+
+    #access_log  logs/access.log  main;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    #keepalive_timeout  0;
+    keepalive_timeout  65;
+
+    #gzip  on;
+
+    server {
+        listen       80;
+        server_name  localhost;
+
+        #charset koi8-r;
+
+        #access_log  logs/host.access.log  main;
+        root /data/http/encrypted-arch-linux;
+        index encrypted-arch-linux.html;
+
+        #location / {
+        #    root   /usr/share/nginx/html;
+        #    index  index.html index.htm;
+        #}
+
+        #error_page  404              /404.html;
+
+        # redirect server error pages to the static page /50x.html
+        #
+        error_page 403 404 /maintenance.html;
+        location = /maintenance.html {
+            root   /usr/share/nginx/html;
+            internal;
+        }
+
+        access_log /var/log/nginx/access.log;
+        error_log /var/log/nginx/error.log warn;
+
+        # proxy the PHP scripts to Apache listening on 127.0.0.1:80
+        #
+        #location ~ \.php$ {
+        #    proxy_pass   http://127.0.0.1;
+        #}
+
+        # pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
+        #
+        #location ~ \.php$ {
+        #    root           html;
+        #    fastcgi_pass   127.0.0.1:9000;
+        #    fastcgi_index  index.php;
+        #    fastcgi_param  SCRIPT_FILENAME  /scripts$fastcgi_script_name;
+        #    include        fastcgi_params;
+        #}
+
+        # deny access to .htaccess files, if Apache's document root
+        # concurs with nginx's one
+        #
+        #location ~ /\.ht {
+        #    deny  all;
+        #}
+    }
+
+
+    # another virtual host using mix of IP-, name-, and port-based configuration
+    #
+    #server {
+    #    listen       8000;
+    #    listen       somename:8080;
+    #    server_name  somename  alias  another.alias;
+
+    #    location / {
+    #        root   html;
+    #        index  index.html index.htm;
+    #    }
+    #}
+
+
+    # HTTPS server
+    #
+    #server {
+    #    listen       443 ssl;
+    #    server_name  localhost;
+
+    #    ssl_certificate      cert.pem;
+    #    ssl_certificate_key  cert.key;
+
+    #    ssl_session_cache    shared:SSL:1m;
+    #    ssl_session_timeout  5m;
+
+    #    ssl_ciphers  HIGH:!aNULL:!MD5;
+    #    ssl_prefer_server_ciphers  on;
+
+    #    location / {
+    #        root   html;
+    #        index  index.html index.htm;
+    #    }
+    #}
+
+}
+EOF
+	print_success "Nginx configured"
+
+	# Step 10: Set up website content
+	print_step 10 $TOTAL_STEPS "Setting up website content..."
+	pushd /tmp >/dev/null
+
+	# Try to clone the repository
+	print_info "Attempting to clone website content..."
+	git clone https://github.com/Asashi-Git/encrypted-arch-linux.git 2>/dev/null
+	if [ -d encrypted-arch-linux ]; then
+		# If clone succeeded
+		print_success "Content downloaded successfully"
+		mv encrypted-arch-linux /data/http/ || handle_error "Failed to move website files"
+	else
+		# Create placeholder content if git clone fails
+		print_warning "Could not download content, creating placeholder"
+		mkdir -p /data/http/encrypted-arch-linux
+		cat >/data/http/encrypted-arch-linux/encrypted-arch-linux.html <<'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Encrypted Arch Linux</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+        h1 { color: #3498db; }
+        .container { max-width: 800px; margin: 0 auto; }
+    </style>
+</head>
+<body>
     <div class="container">
-        <div class="content">
-            <h2>Configuration Successful!</h2>
-            <p>Your encrypted web server is now properly configured and working.</p>
-            <p class="success">This website is being served from an encrypted partition that is only accessible when unlocked!</p>
-            <h3>Next Steps:</h3>
-            <ul>
-                <li>Replace this file with your actual website content</li>
-                <li>Configure additional Nginx settings as needed</li>
-                <li>Set up SSL certificates for secure HTTPS connections</li>
-            </ul>
-            <p>The encrypted partition will be mounted at login when the user chooses to unlock it.</p>
-            <h3>Security Features:</h3>
-            <ul>
-                <li>Full disk encryption for web content</li>
-                <li>Content is only accessible when explicitly unlocked</li>
-                <li>User-based access control via sudo permissions</li>
-            </ul>
-        </div>
+        <h1>Welcome to Encrypted Arch Linux</h1>
+        <p>This is a placeholder page for the encrypted HTTP partition setup.</p>
+        <p>Your encrypted partition is working correctly!</p>
     </div>
 </body>
 </html>
 EOF
+	fi
 
-  # Configure Nginx to serve the website
-  if [ -d "/etc/nginx/sites-available" ]; then
-    nginx_conf_dir="/etc/nginx/sites-available"
-    nginx_enabled_dir="/etc/nginx/sites-enabled"
-    mkdir -p "$nginx_enabled_dir" 2>/dev/null
-  else
-    nginx_conf_dir="/etc/nginx/conf.d"
-    nginx_enabled_dir=""
-    mkdir -p "$nginx_conf_dir" 2>/dev/null
-  fi
+	popd >/dev/null
 
-  cat >"$nginx_conf_dir/encrypted-site.conf" <<EOF
-server {
-    listen 80;
-    server_name localhost;
+	# Set proper permissions
+	print_info "Setting correct permissions..."
+	chown -R $username:http /data/http
+	chmod -R 750 /data/http
 
-    root /data/http/encrypted-arch-linux;
-    index index.html;
+	# Enable and start Nginx
+	print_info "Enabling and starting Nginx..."
+	systemctl enable nginx
+	systemctl restart nginx
 
-    location / {
-        try_files \$uri \$uri/ =404;
-    }
-}
-EOF
+	# Configure sudo permissions for mount script
+	print_info "Configuring sudo permissions for mount script..."
+	if ! grep -q "mount-httpdata.sh" /etc/sudoers.d/*; then
+		echo "$username ALL=(ALL) NOPASSWD: /usr/local/bin/mount-httpdata.sh" >"/etc/sudoers.d/$username" || handle_error "Failed to update sudoers"
+		chmod 440 "/etc/sudoers.d/$username"
+		print_success "Sudo permissions configured"
+	else
+		print_info "Sudo permissions already configured"
+	fi
 
-  # Enable the site if using sites-enabled
-  if [ -n "$nginx_enabled_dir" ] && [ ! -L "$nginx_enabled_dir/encrypted-site.conf" ]; then
-    ln -s "$nginx_conf_dir/encrypted-site.conf" "$nginx_enabled_dir/encrypted-site.conf"
-  fi
+	# Final summary
+	print_section "Setup Complete"
 
-  print_success "Sample website created at /data/http/encrypted-arch-linux"
-else
-  print_warning "Could not create sample website. Directory /data/http/encrypted-arch-linux is not available."
-fi
+	echo -e "${GREEN}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
+	echo -e "${GREEN}${BOLD}│ Encrypted Web Server Configuration Complete                   │${NC}"
+	echo -e "${GREEN}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
+	echo -e
+	echo -e "  ${GREEN}✓${NC} Encrypted HTTP partition has been created and configured"
+	echo -e "  ${GREEN}✓${NC} User '$username' will be prompted to mount the partition at login"
+	echo -e "  ${GREEN}✓${NC} Nginx has been configured to serve content from /data/http/encrypted-arch-linux"
+	echo -e "  ${GREEN}✓${NC} Mount script is available at: /usr/local/bin/mount-httpdata.sh"
+	echo
 
-# Set proper permissions
-print_info "Setting correct permissions..."
-chown -R $username:http /data/http
-chmod -R 750 /data/http
+	# Let user know if partition will be unmounted at reboot
+	if ! grep -q "crypthttp" /etc/crypttab; then
+		echo -e "${YELLOW}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
+		echo -e "${YELLOW}${BOLD}│ Important Notes                                                │${NC}"
+		echo -e "${YELLOW}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
+		echo -e "  ${YELLOW}!${NC} The encrypted partition will not be automatically unlocked at boot"
+		echo -e "  ${YELLOW}!${NC} To make it persistent across reboots, add entries to:"
+		echo -e "     - /etc/crypttab"
+		echo -e "     - /etc/fstab"
+		echo
+	fi
 
-# Enable and start Nginx
-print_info "Enabling and starting Nginx..."
-systemctl enable nginx
-systemctl restart nginx
+	# Final check if everything is working
+	if mountpoint -q /data/http && systemctl is-active --quiet nginx; then
+		echo -e "${GREEN}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
+		echo -e "${GREEN}${BOLD}│ Status: All services are running correctly!                    │${NC}"
+		echo -e "${GREEN}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
+	else
+		echo -e "${YELLOW}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
+		echo -e "${YELLOW}${BOLD}│ Warning: There may be issues with the setup                    │${NC}"
+		echo -e "${YELLOW}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
+		echo -e "  ${YELLOW}!${NC} Please check the logs for more information:"
+		echo -e "     - Nginx logs: /var/log/nginx/error.log"
+		echo -e "     - System logs: journalctl -xe"
+	fi
 
-# Configure sudo permissions for mount script
-print_info "Configuring sudo permissions for mount script..."
-if ! grep -q "mount-httpdata.sh" /etc/sudoers.d/*; then
-  echo "$username ALL=(ALL) NOPASSWD: /usr/local/bin/mount-httpdata.sh" >"/etc/sudoers.d/$username" || handle_error "Failed to update sudoers"
-  chmod 440 "/etc/sudoers.d/$username"
-  print_success "Sudo permissions configured"
-else
-  print_info "Sudo permissions already configured"
-fi
-
-# Final summary
-print_section "Setup Complete"
-
-echo -e "${GREEN}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
-echo -e "${GREEN}${BOLD}│ Encrypted Web Server Configuration Complete                   │${NC}"
-echo -e "${GREEN}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
-echo -e
-echo -e "  ${GREEN}✓${NC} Encrypted HTTP partition has been created and configured"
-echo -e "  ${GREEN}✓${NC} User '$username' will be prompted to mount the partition at login"
-echo -e "  ${GREEN}✓${NC} Nginx has been configured to serve content from /data/http/encrypted-arch-linux"
-echo -e "  ${GREEN}✓${NC} Mount script is available at: /usr/local/bin/mount-httpdata.sh"
-echo
-
-# Let user know if partition will be unmounted at reboot
-if ! grep -q "crypthttp" /etc/crypttab; then
-  echo -e "${YELLOW}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
-  echo -e "${YELLOW}${BOLD}│ Important Notes                                                │${NC}"
-  echo -e "${YELLOW}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
-  echo -e "  ${YELLOW}!${NC} The encrypted partition will not be automatically unlocked at boot"
-  echo -e "  ${YELLOW}!${NC} To make it persistent across reboots, add entries to:"
-  echo -e "     - /etc/crypttab"
-  echo -e "     - /etc/fstab"
-  echo
-fi
-
-# Final check if everything is working
-if mountpoint -q /data/http && systemctl is-active --quiet nginx; then
-  echo -e "${GREEN}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
-  echo -e "${GREEN}${BOLD}│ Status: All services are running correctly!                    │${NC}"
-  echo -e "${GREEN}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
-else
-  echo -e "${YELLOW}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
-  echo -e "${YELLOW}${BOLD}│ Warning: There may be issues with the setup                    │${NC}"
-  echo -e "${YELLOW}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
-  echo -e "  ${YELLOW}!${NC} Please check the logs for more information:"
-  echo -e "     - Nginx logs: /var/log/nginx/error.log"
-  echo -e "     - System logs: journalctl -xe"
-fi
-
-echo
-echo -e "${BRIGHT_BLUE}${BOLD}"
-cat <<"EOF"
+	echo
+	echo -e "${BRIGHT_BLUE}${BOLD}"
+	cat <<"EOF"
   ███████╗███████╗ ██████╗██╗   ██╗██████╗ ██╗████████╗██╗   ██╗    ███████╗███╗   ██╗██╗  ██╗ █████╗ ███╗   ██╗ ██████╗███████╗██████╗ 
   ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██║╚══██╔══╝╚██╗ ██╔╝    ██╔════╝████╗  ██║██║  ██║██╔══██╗████╗  ██║██╔════╝██╔════╝██╔══██╗
   ███████╗█████╗  ██║     ██║   ██║██████╔╝██║   ██║    ╚████╔╝     █████╗  ██╔██╗ ██║███████║███████║██╔██╗ ██║██║     █████╗  ██║  ██║
@@ -398,4 +537,8 @@ cat <<"EOF"
   ███████║███████╗╚██████╗╚██████╔╝██║  ██║██║   ██║      ██║       ███████╗██║ ╚████║██║  ██║██║  ██║██║ ╚████║╚██████╗███████╗██████╔╝
   ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝   ╚═╝      ╚═╝       ╚══════╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝╚═════╝ 
 EOF
-echo -e "${NC}"
+	echo -e "${NC}"
+}
+
+# Execute main function
+main
