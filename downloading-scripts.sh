@@ -24,134 +24,134 @@ NC='\033[0m' # No Color
 # │ Utility functions                                                │
 # └─────────────────────────────────────────────────────────────────┘
 print_section() {
-  echo -e "\n${BLUE}${BOLD}╔════════════ $1 ════════════╗${NC}\n"
+	echo -e "\n${BLUE}${BOLD}╔════════════ $1 ════════════╗${NC}\n"
 }
 
 print_info() {
-  echo -e "${CYAN}${BOLD}[INFO]${NC} $1"
+	echo -e "${CYAN}${BOLD}[INFO]${NC} $1"
 }
 
 print_step() {
-  echo -e "${MAGENTA}${BOLD}[STEP $1/$2]${NC} $3"
+	echo -e "${MAGENTA}${BOLD}[STEP $1/$2]${NC} $3"
 }
 
 print_success() {
-  echo -e "${GREEN}${BOLD}[SUCCESS]${NC} $1"
+	echo -e "${GREEN}${BOLD}[SUCCESS]${NC} $1"
 }
 
 print_error() {
-  echo -e "${RED}${BOLD}[ERROR]${NC} $1"
-  exit 1
+	echo -e "${RED}${BOLD}[ERROR]${NC} $1"
+	exit 1
 }
 
 print_warning() {
-  echo -e "${YELLOW}${BOLD}[WARNING]${NC} $1"
+	echo -e "${YELLOW}${BOLD}[WARNING]${NC} $1"
 }
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Check if script is run as root                                   │
 # └─────────────────────────────────────────────────────────────────┘
 check_sudo() {
-  if ! command -v sudo &>/dev/null; then
-    print_error "sudo is not installed. Please install sudo first."
-  fi
+	if ! command -v sudo &>/dev/null; then
+		print_error "sudo is not installed. Please install sudo first."
+	fi
 
-  # Check if user has sudo privileges
-  if ! sudo -v &>/dev/null; then
-    print_error "You need sudo privileges to run this script."
-  fi
+	# Check if user has sudo privileges
+	if ! sudo -v &>/dev/null; then
+		print_error "You need sudo privileges to run this script."
+	fi
 }
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Function to download and execute a script                        │
 # └─────────────────────────────────────────────────────────────────┘
 download_and_execute() {
-  local script_name="$1"
-  local step_num="$2"
-  local total_steps="$3"
-  local script_url="https://raw.githubusercontent.com/Asashi-Git/scripts/main/${script_name}"
+	local script_name="$1"
+	local step_num="$2"
+	local total_steps="$3"
+	local script_url="https://raw.githubusercontent.com/Asashi-Git/scripts/main/${script_name}"
 
-  print_step "$step_num" "$total_steps" "Processing ${script_name}..."
+	print_step "$step_num" "$total_steps" "Processing ${script_name}..."
 
-  # Download script
-  print_info "Downloading ${script_name}..."
-  if ! curl -o "${script_name}" "${script_url}" 2>/dev/null; then
-    print_error "Failed to download ${script_name}. Check your internet connection or the URL."
-  fi
-  print_success "Downloaded ${script_name} successfully"
+	# Download script
+	print_info "Downloading ${script_name}..."
+	if ! curl -o "${script_name}" "${script_url}" 2>/dev/null; then
+		print_error "Failed to download ${script_name}. Check your internet connection or the URL."
+	fi
+	print_success "Downloaded ${script_name} successfully"
 
-  # Make script executable
-  print_info "Making ${script_name} executable..."
-  if ! chmod +x "${script_name}"; then
-    rm -f "${script_name}"
-    print_error "Failed to make ${script_name} executable."
-  fi
-  print_success "${script_name} is now executable"
+	# Make script executable
+	print_info "Making ${script_name} executable..."
+	if ! chmod +x "${script_name}"; then
+		rm -f "${script_name}"
+		print_error "Failed to make ${script_name} executable."
+	fi
+	print_success "${script_name} is now executable"
 
-  # Execute script
-  print_info "Executing ${script_name} with sudo..."
-  if ! sudo bash "./${script_name}"; then
-    print_warning "Execution of ${script_name} may have encountered issues."
-  else
-    print_success "${script_name} executed successfully"
-  fi
+	# Execute script
+	print_info "Executing ${script_name} with sudo..."
+	if ! sudo bash "./${script_name}"; then
+		print_warning "Execution of ${script_name} may have encountered issues."
+	else
+		print_success "${script_name} executed successfully"
+	fi
 
-  # Clean up
-  print_info "Removing ${script_name}..."
-  if ! rm -f "${script_name}"; then
-    print_warning "Failed to remove ${script_name}. You may want to delete it manually."
-  else
-    print_success "${script_name} removed successfully"
-  fi
+	# Clean up
+	print_info "Removing ${script_name}..."
+	if ! rm -f "${script_name}"; then
+		print_warning "Failed to remove ${script_name}. You may want to delete it manually."
+	else
+		print_success "${script_name} removed successfully"
+	fi
 
-  echo -e "\n${BLUE}${BOLD}╠════════════ Script ${step_num}/${total_steps} Complete ═════════════╣${NC}\n"
+	echo -e "\n${BLUE}${BOLD}╠════════════ Script ${step_num}/${total_steps} Complete ═════════════╣${NC}\n"
 }
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Function to set up server based on user choice                   │
 # └─────────────────────────────────────────────────────────────────┘
 setup_server() {
-  print_section "Server Setup Options"
+	print_section "Server Setup Options"
 
-  echo -e "${GREEN}▶${NC} Would you like to set up a specific type of server on your system?"
-  echo -e "  ${YELLOW}1.${NC} Web Server (NGINX with hardened configuration)"
-  echo -e "  ${YELLOW}2.${NC} Proxy/Reverse Proxy Server"
-  echo -e "  ${YELLOW}3.${NC} None - Skip this step"
-  echo
+	echo -e "${GREEN}▶${NC} Would you like to set up a specific type of server on your system?"
+	echo -e "  ${YELLOW}1.${NC} Web Server (NGINX with hardened configuration)"
+	echo -e "  ${YELLOW}2.${NC} Proxy/Reverse Proxy Server"
+	echo -e "  ${YELLOW}3.${NC} None - Skip this step"
+	echo
 
-  local choice
-  read -p "Enter your choice (1-3): " choice
-  echo
+	local choice
+	read -p "Enter your choice (1-3): " choice
+	echo
 
-  case $choice in
-  1)
-    print_info "Setting up a hardened web server..."
-    download_and_execute "web-server-hardened.sh" "1" "1"
-    print_success "Web server setup completed!"
-    ;;
-  2)
-    print_info "Setting up a proxy/reverse proxy server..."
-    download_and_execute "proxy-reverse-proxy.sh" "1" "1"
-    print_success "Proxy/Reverse Proxy setup completed!"
-    ;;
-  3)
-    print_info "Skipping server setup as requested."
-    ;;
-  *)
-    print_warning "Invalid choice. Skipping server setup."
-    ;;
-  esac
+	case $choice in
+	1)
+		print_info "Setting up a hardened web server..."
+		download_and_execute "web-server-hardened.sh" "1" "1"
+		print_success "Web server setup completed!"
+		;;
+	2)
+		print_info "Setting up a proxy/reverse proxy server..."
+		download_and_execute "proxy-reverse-proxy.sh" "1" "1"
+		print_success "Proxy/Reverse Proxy setup completed!"
+		;;
+	3)
+		print_info "Skipping server setup as requested."
+		;;
+	*)
+		print_warning "Invalid choice. Skipping server setup."
+		;;
+	esac
 }
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Main function                                                    │
 # └─────────────────────────────────────────────────────────────────┘
 main() {
-  # Display header
-  clear
-  echo
-  echo -e "${BRIGHT_BLUE}${BOLD}"
-  cat <<"EOF"
+	# Display header
+	clear
+	echo
+	echo -e "${BRIGHT_BLUE}${BOLD}"
+	cat <<"EOF"
    █████╗ ██████╗  ██████╗██╗  ██╗    ███████╗███████╗ ██████╗██╗   ██╗██████╗ ██╗████████╗██╗   ██╗    ███████╗██╗   ██╗██╗████████╗███████╗
   ██╔══██╗██╔══██╗██╔════╝██║  ██║    ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██║╚══██╔══╝╚██╗ ██╔╝    ██╔════╝██║   ██║██║╚══██╔══╝██╔════╝
   ███████║██████╔╝██║     ███████║    ███████╗█████╗  ██║     ██║   ██║██████╔╝██║   ██║    ╚████╔╝     ███████╗██║   ██║██║   ██║   █████╗  
@@ -159,11 +159,10 @@ main() {
   ██║  ██║██║  ██║╚██████╗██║  ██║    ███████║███████╗╚██████╗╚██████╔╝██║  ██║██║   ██║      ██║       ███████║╚██████╔╝██║   ██║   ███████╗
   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝    ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝   ╚═╝      ╚═╝       ╚══════╝ ╚═════╝ ╚═╝   ╚═╝   ╚══════╝
 EOF
-  echo -e "${NC}"
+	echo -e "${NC}"
 
-  echo -e "${MAGENTA}${BOLD}"
-  cat <<"EOF"
-                                                                                                                 
+	echo -e "${MAGENTA}${BOLD}"
+	cat <<"EOF"
     ██████╗ ██╗   ██╗    ██████╗ ███████╗ ██████╗ █████╗ ██████╗ ███╗   ██╗███████╗██╗     ██╗     ███████╗    
     ██╔══██╗╚██╗ ██╔╝    ██╔══██╗██╔════╝██╔════╝██╔══██╗██╔══██╗████╗  ██║██╔════╝██║     ██║     ██╔════╝    
     ██████╔╝ ╚████╔╝     ██║  ██║█████╗  ██║     ███████║██████╔╝██╔██╗ ██║█████╗  ██║     ██║     █████╗      
@@ -177,8 +176,7 @@ EOF
     ╚════██║██╔══██║██║╚██╔╝██║██║   ██║██╔══╝  ██║                                                              
     ███████║██║  ██║██║ ╚═╝ ██║╚██████╔╝███████╗███████╗                                                         
     ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚══════╝                                                         
-                                                                                                                 
-EOF	
+EOF
 	echo -e "${NC}"
 
 	echo -e "${CYAN}${BOLD}┌─────────────────────────────────────────────────────────────────────────────────┐${NC}"
@@ -260,18 +258,25 @@ EOF
   ███████║███████╗╚██████╗╚██████╔╝██║  ██║██║   ██║      ██║       ██║  ██║██║  ██║██║  ██║██████╔╝███████╗██║ ╚████║███████╗██████╔╝██╗
   ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝   ╚═╝      ╚═╝       ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═══╝╚══════╝╚═════╝ ╚═╝
 EOF
-  echo -e "${NC}"
+	echo -e "${NC}"
 
-  echo -e "${GREEN}${BOLD}"
-  cat <<"EOF"
-  ██████╗ ██╗   ██╗    ██████╗ ███████╗ ██████╗ █████╗ ██████╗ ███╗   ██╗███████╗██╗     ██╗     ███████╗    ███████╗ █████╗ ███╗   ███╗██╗   ██╗███████╗██╗     
-  ██╔══██╗╚██╗ ██╔╝    ██╔══██╗██╔════╝██╔════╝██╔══██╗██╔══██╗████╗  ██║██╔════╝██║     ██║     ██╔════╝    ██╔════╝██╔══██╗████╗ ████║██║   ██║██╔════╝██║     
-  ██████╔╝ ╚████╔╝     ██║  ██║█████╗  ██║     ███████║██████╔╝██╔██╗ ██║█████╗  ██║     ██║     █████╗      ███████╗███████║██╔████╔██║██║   ██║█████╗  ██║     
-  ██╔══██╗  ╚██╔╝      ██║  ██║██╔══╝  ██║     ██╔══██║██╔══██╗██║╚██╗██║██╔══╝  ██║     ██║     ██╔══╝      ╚════██║██╔══██║██║╚██╔╝██║██║   ██║██╔══╝  ██║     
-  ██████╔╝   ██║       ██████╔╝███████╗╚██████╗██║  ██║██║  ██║██║ ╚████║███████╗███████╗███████╗███████╗    ███████║██║  ██║██║ ╚═╝ ██║╚██████╔╝███████╗███████╗
-  ╚═════╝    ╚═╝       ╚═════╝ ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝╚══════╝╚══════╝    ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚══════╝
+	echo -e "${GREEN}${BOLD}"
+	cat <<"EOF"
+    ██████╗ ██╗   ██╗    ██████╗ ███████╗ ██████╗ █████╗ ██████╗ ███╗   ██╗███████╗██╗     ██╗     ███████╗    
+    ██╔══██╗╚██╗ ██╔╝    ██╔══██╗██╔════╝██╔════╝██╔══██╗██╔══██╗████╗  ██║██╔════╝██║     ██║     ██╔════╝    
+    ██████╔╝ ╚████╔╝     ██║  ██║█████╗  ██║     ███████║██████╔╝██╔██╗ ██║█████╗  ██║     ██║     █████╗      
+    ██╔══██╗  ╚██╔╝      ██║  ██║██╔══╝  ██║     ██╔══██║██╔══██╗██║╚██╗██║██╔══╝  ██║     ██║     ██╔══╝      
+    ██████╔╝   ██║       ██████╔╝███████╗╚██████╗██║  ██║██║  ██║██║ ╚████║███████╗███████╗███████╗███████╗    
+    ╚═════╝    ╚═╝       ╚═════╝ ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝╚══════╝╚══════╝    
+                                                                                                                 
+    ███████╗ █████╗ ███╗   ███╗██╗   ██╗███████╗██╗                                                              
+    ██╔════╝██╔══██╗████╗ ████║██║   ██║██╔════╝██║                                                              
+    ███████╗███████║██╔████╔██║██║   ██║█████╗  ██║                                                              
+    ╚════██║██╔══██║██║╚██╔╝██║██║   ██║██╔══╝  ██║                                                              
+    ███████║██║  ██║██║ ╚═╝ ██║╚██████╔╝███████╗███████╗                                                         
+    ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚══════╝                                                         
 EOF
-  echo -e "${NC}"
+	echo -e "${NC}"
 }
 
 # Execute main function
