@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Site Maintenance</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --text-primary: #c9d1d9;
+      --text-secondary: #8b949e;
+      --accent: #58a6ff;
+      --accent-muted: rgba(88, 166, 255, 0.4);
+      --border: #30363d;
+      --shadow: rgba(0, 0, 0, 0.3);
+      --purple-accent: #a371f7;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial,
+        sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    .maintenance-container {
+      background-color: var(--bg-secondary);
+      border-radius: 6px;
+      box-shadow: 0 4px 24px var(--shadow);
+      padding: 2.5rem;
+      text-align: center;
+      max-width: 28rem;
+      width: 90%;
+      animation: fadeIn 0.8s ease-in-out;
+      border: 1px solid var(--border);
+    }
+
+    @keyframes fadeIn {
+      0% {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .icon-container {
+      position: relative;
+      height: 80px;
+      margin-bottom: 1.5rem;
+    }
+
+    .icon-main {
+      font-size: 3rem;
+      color: var(--accent);
+      position: relative;
+      z-index: 2;
+    }
+
+    .gear-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .gear {
+      position: absolute;
+      color: var(--purple-accent);
+      opacity: 0.7;
+    }
+
+    .gear-large {
+      font-size: 2rem;
+      animation: spin 8s linear infinite;
+      top: 10px;
+      right: calc(50% - 50px);
+    }
+
+    .gear-small {
+      font-size: 1.5rem;
+      animation: spin-reverse 6s linear infinite;
+      top: 20px;
+      left: calc(50% + 30px);
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes spin-reverse {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(-360deg);
+      }
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+    }
+
+    .divider {
+      height: 1px;
+      width: 60px;
+      background-color: var(--border);
+      margin: 1rem auto;
+    }
+
+    .message {
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+    }
+
+    .status-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      background-color: rgba(88, 166, 255, 0.1);
+      padding: 0.75rem;
+      border-radius: 4px;
+    }
+
+    .status-indicator {
+      width: 12px;
+      height: 12px;
+      background-color: var(--accent);
+      border-radius: 50%;
+      margin-right: 0.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pulse {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-color: var(--accent);
+      border-radius: 50%;
+      opacity: 0.7;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(1);
+        opacity: 0.7;
+      }
+
+      50% {
+        transform: scale(2);
+        opacity: 0;
+      }
+
+      100% {
+        transform: scale(1);
+        opacity: 0;
+      }
+    }
+
+    .status-text {
+      font-size: 0.9rem;
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .timer-container {
+      margin-bottom: 1.5rem;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .countdown {
+      font-family: monospace;
+      color: var(--text-primary);
+      font-weight: 600;
+      font-size: 1.5rem;
+      display: flex;
+      justify-content: center;
+      margin-top: 0.5rem;
+    }
+
+    .time-segment {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0 10px;
+    }
+
+    .time-value {
+      background-color: rgba(255, 255, 255, 0.05);
+      padding: 0.3rem 0.6rem;
+      border-radius: 4px;
+      min-width: 50px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    }
+
+    .time-label {
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      margin-top: 0.3rem;
+      color: var(--text-secondary);
+    }
+
+    .time-separator {
+      font-size: 1.5rem;
+      align-self: center;
+      color: var(--text-secondary);
+      margin-top: -8px;
+    }
+
+    .contact-info {
+      background-color: rgba(255, 255, 255, 0.05);
+      padding: 1rem;
+      border-radius: 4px;
+      margin-top: 1.5rem;
+    }
+
+    .contact-info p {
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+      color: var(--text-secondary);
+    }
+
+    .contact-link {
+      color: var(--accent);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+    }
+
+    .contact-link:hover {
+      color: var(--purple-accent);
+      text-decoration: underline;
+    }
+
+    .contact-link i {
+      margin-right: 0.5rem;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="maintenance-container">
+    <div class="icon-container">
+      <i class="fas fa-wrench icon-main"></i>
+      <div class="gear-container">
+        <i class="fas fa-cog gear gear-large"></i>
+        <i class="fas fa-cog gear gear-small"></i>
+      </div>
+    </div>
+    <h1>Site Under Maintenance</h1>
+    <div class="divider"></div>
+    <p class="message">
+      We're currently performing some scheduled maintenance. We'll be back
+      online shortly.
+    </p>
+    <div class="status-container">
+      <div class="status-indicator">
+        <div class="pulse"></div>
+      </div>
+      <p class="status-text">System is being updated</p>
+    </div>
+
+    <div class="timer-container">
+      <p>Estimated time remaining:</p>
+      <div class="countdown">
+        <div class="time-segment">
+          <div class="time-value" id="hours">01</div>
+          <div class="time-label">hours</div>
+        </div>
+        <div class="time-separator">:</div>
+        <div class="time-segment">
+          <div class="time-value" id="minutes">00</div>
+          <div class="time-label">minutes</div>
+        </div>
+        <div class="time-separator">:</div>
+        <div class="time-segment">
+          <div class="time-value" id="seconds">30</div>
+          <div class="time-label">seconds</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="contact-info">
+      <p>If you need immediate assistance, please contact:</p>
+      <a href="mailto:samueldecarnelle@gmail.com" class="contact-link">
+        <i class="far fa-envelope"></i> samueldecarnelle@gmail.com
+      </a>
+    </div>
+  </div>
+
+  <script>
+    // Countdown timer from 1h 0m 30s
+    function startCountdown() {
+      // Set the initial time: 1 hour, 0 minutes, 30 seconds
+      let hours = 1;
+      let minutes = 0;
+      let seconds = 30;
+
+      // Total time in seconds
+      let totalSeconds = hours * 3600 + minutes * 60 + seconds;
+
+      // Update the display initially
+      updateCountdown();
+
+      // Set up the interval to update the countdown every second
+      const countdownInterval = setInterval(() => {
+        totalSeconds--;
+
+        if (totalSeconds <= 0) {
+          clearInterval(countdownInterval);
+          document.querySelector(".status-text").textContent =
+            "Maintenance complete!";
+
+          // Optional: reload the page or redirect after countdown completes
+          // setTimeout(() => {
+          //     window.location.reload();
+          // }, 3000);
+        }
+
+        updateCountdown();
+      }, 1000);
+
+      // Function to update the countdown display
+      function updateCountdown() {
+        // Calculate hours, minutes, seconds from total seconds
+        hours = Math.floor(totalSeconds / 3600);
+        minutes = Math.floor((totalSeconds % 3600) / 60);
+        seconds = totalSeconds % 60;
+
+        // Update the display with padded values
+        document.getElementById("hours").textContent = hours
+          .toString()
+          .padStart(2, "0");
+        document.getElementById("minutes").textContent = minutes
+          .toString()
+          .padStart(2, "0");
+        document.getElementById("seconds").textContent = seconds
+          .toString()
+          .padStart(2, "0");
+      }
+    }
+
+    // Start the countdown when the page loads
+    document.addEventListener("DOMContentLoaded", startCountdown);
+
+    // Function for random gear movements (disabled by default)
+    function applyRandomMovements() {
+      const gearLarge = document.querySelector(".gear-large");
+      const gearSmall = document.querySelector(".gear-small");
+
+      setInterval(() => {
+        const randomTopLarge = 10 + (Math.random() * 5 - 2.5);
+        const randomRightLarge = parseInt(50 - 50 + (Math.random() * 10 - 5));
+
+        const randomTopSmall = 20 + (Math.random() * 5 - 2.5);
+        const randomLeftSmall = parseInt(50 + 30 + (Math.random() * 10 - 5));
+
+        gearLarge.style.top = `${randomTopLarge}px`;
+        gearLarge.style.right = `calc(50% - ${randomRightLarge}px)`;
+
+        gearSmall.style.top = `${randomTopSmall}px`;
+        gearSmall.style.left = `calc(50% + ${randomLeftSmall}px)`;
+      }, 2000);
+    }
+
+      // Uncomment to enable random movements
+      // applyRandomMovements();
+  </script>
+</body>
+
+</html>
