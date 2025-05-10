@@ -23,48 +23,48 @@ NC='\033[0m' # No Color
 # └─────────────────────────────────────────────────────────────────┘
 # Function to print section headers
 print_section() {
-	echo -e "\n${BLUE}${BOLD}╔════════════ $1 ════════════╗${NC}\n"
+  echo -e "\n${BLUE}${BOLD}╔════════════ $1 ════════════╗${NC}\n"
 }
 
 # Function to print information
 print_info() {
-	echo -e "${GREEN}${BOLD}[INFO]${NC} $1"
+  echo -e "${GREEN}${BOLD}[INFO]${NC} $1"
 }
 
 # Function to print warnings
 print_warning() {
-	echo -e "${YELLOW}${BOLD}[WARNING]${NC} $1"
+  echo -e "${YELLOW}${BOLD}[WARNING]${NC} $1"
 }
 
 # Function to print errors
 print_error() {
-	echo -e "${RED}${BOLD}[ERROR]${NC} $1"
+  echo -e "${RED}${BOLD}[ERROR]${NC} $1"
 }
 
 # Function to get user confirmation
 confirm() {
-	local prompt="$1"
-	local response
+  local prompt="$1"
+  local response
 
-	while true; do
-		echo -e -n "${CYAN}${prompt} [y/n]:${NC} "
-		read response
-		case $response in
-		[Yy]*) return 0 ;;
-		[Nn]*) return 1 ;;
-		*) echo -e "${YELLOW}Please enter y or n.${NC}" ;;
-		esac
-	done
+  while true; do
+    echo -e -n "${CYAN}${prompt} [y/n]:${NC} "
+    read response
+    case $response in
+    [Yy]*) return 0 ;;
+    [Nn]*) return 1 ;;
+    *) echo -e "${YELLOW}Please enter y or n.${NC}" ;;
+    esac
+  done
 }
 
 # Function to check if a command executed successfully
 check_success() {
-	if [ $? -eq 0 ]; then
-		print_info "$1"
-	else
-		print_error "$2"
-		exit 1
-	fi
+  if [ $? -eq 0 ]; then
+    print_info "$1"
+  else
+    print_error "$2"
+    exit 1
+  fi
 }
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -109,8 +109,8 @@ echo
 # │ Confirm before proceeding                                        │
 # └─────────────────────────────────────────────────────────────────┘
 if ! confirm "Do you want to continue?"; then
-	echo -e "${RED}${BOLD}Installation aborted by user.${NC}"
-	exit 0
+  echo -e "${RED}${BOLD}Installation aborted by user.${NC}"
+  exit 0
 fi
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -138,14 +138,14 @@ case $kb_choice in
 5) kb_layout="es" ;;
 6) kb_layout="it" ;;
 7)
-	# List available layouts
-	localectl list-keymaps | grep -v ".gz"
-	read -p "$(echo -e ${CYAN}"Enter keyboard layout from the list above: "${NC})" kb_layout
-	;;
+  # List available layouts
+  localectl list-keymaps | grep -v ".gz"
+  read -p "$(echo -e ${CYAN}"Enter keyboard layout from the list above: "${NC})" kb_layout
+  ;;
 *)
-	echo -e "${YELLOW}Invalid choice. Defaulting to US layout.${NC}"
-	kb_layout="us"
-	;;
+  echo -e "${YELLOW}Invalid choice. Defaulting to US layout.${NC}"
+  kb_layout="us"
+  ;;
 esac
 
 print_info "Setting keyboard layout to ${kb_layout}..."
@@ -168,14 +168,14 @@ read -p "$(echo -e ${CYAN}"Enter the disk to install Arch Linux on (e.g., vda, s
 disk_path="/dev/${disk}"
 
 if [ ! -b "$disk_path" ]; then
-	print_error "The specified disk $disk_path does not exist."
-	exit 1
+  print_error "The specified disk $disk_path does not exist."
+  exit 1
 fi
 
 print_warning "All data on $disk_path will be erased!"
 if ! confirm "Are you sure you want to continue?"; then
-	echo -e "${RED}${BOLD}Installation aborted by user.${NC}"
-	exit 0
+  echo -e "${RED}${BOLD}Installation aborted by user.${NC}"
+  exit 0
 fi
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -195,18 +195,18 @@ print_info "Creating EFI partition (512MB) and main partition for encryption"
 # Using fdisk instead of cfdisk for automation
 print_info "Creating partition table..."
 (
-	echo g     # Create a new empty GPT partition table
-	echo n     # Add new partition (EFI)
-	echo 1     # Partition number 1
-	echo       # Default first sector
-	echo +512M # Size 512MB
-	echo t     # Change partition type
-	echo 1     # EFI System
-	echo n     # Add new partition (Main)
-	echo 2     # Partition number 2
-	echo       # Default first sector
-	echo       # Default last sector (rest of disk)
-	echo w     # Write changes and exit
+  echo g     # Create a new empty GPT partition table
+  echo n     # Add new partition (EFI)
+  echo 1     # Partition number 1
+  echo       # Default first sector
+  echo +512M # Size 512MB
+  echo t     # Change partition type
+  echo 1     # EFI System
+  echo n     # Add new partition (Main)
+  echo 2     # Partition number 2
+  echo       # Default first sector
+  echo       # Default last sector (rest of disk)
+  echo w     # Write changes and exit
 ) | fdisk $disk_path
 
 check_success "Partitions created successfully." "Failed to create partitions."
@@ -282,50 +282,51 @@ print_info "You can accept the suggested sizes or specify your own."
 
 # Function to validate size format
 validate_size() {
-    local size=$1
-    if [[  $ size =~ ^[0-9]+[MG] $  ]]; then
-        return 0
-    else
-        print_error "Invalid size format. Please use format like '20G' or '500M'"
-        return 1
-    fi
+  local size=$1
+  if echo "$size" | grep -qE '^[0-9]+[MG]$'; then
+
+    return 0
+  else
+    print_error "Invalid size format. Please use format like '20G' or '500M'"
+    return 1
+  fi
 }
 
 # Get user input for each partition size with defaults
 while true; do
-    read -p "$(echo -e ${CYAN}"Size for ROOT partition [${root_size_default}]: "${NC})" root_size
-    root_size=${root_size:-$root_size_default}
-    validate_size "$root_size" && break
+  read -p "$(echo -e ${CYAN}"Size for ROOT partition [${root_size_default}]: "${NC})" root_size
+  root_size=${root_size:-$root_size_default}
+  validate_size "$root_size" && break
 done
 
 while true; do
-    read -p "$(echo -e ${CYAN}"Size for VAR partition [${var_size_default}]: "${NC})" var_size
-    var_size=${var_size:-$var_size_default}
-    validate_size "$var_size" && break
+  read -p "$(echo -e ${CYAN}"Size for VAR partition [${var_size_default}]: "${NC})" var_size
+  var_size=${var_size:-$var_size_default}
+  validate_size "$var_size" && break
 done
 
 while true; do
-    read -p "$(echo -e ${CYAN}"Size for USR partition [${usr_size_default}]: "${NC})" usr_size
-    usr_size=${usr_size:-$usr_size_default}
-    validate_size "$usr_size" && break
+  read -p "$(echo -e ${CYAN}"Size for USR partition [${usr_size_default}]: "${NC})" usr_size
+  usr_size=${usr_size:-$usr_size_default}
+  validate_size "$usr_size" && break
 done
 
 while true; do
-    read -p "$(echo -e ${CYAN}"Size for DATA partition [${data_size_default}]: "${NC})" data_size
-    data_size=${data_size:-$data_size_default}
-    validate_size "$data_size" && break
+  read -p "$(echo -e ${CYAN}"Size for DATA partition [${data_size_default}]: "${NC})" data_size
+  data_size=${data_size:-$data_size_default}
+  validate_size "$data_size" && break
 done
 
 while true; do
-    read -p "$(echo -e ${CYAN}"Size for HOME partition [${home_size_default}]: "${NC})" home_size
-    home_size=${home_size:-$home_size_default}
-    validate_size "$home_size" && break
+  read -p "$(echo -e ${CYAN}"Size for HOME partition [${home_size_default}]: "${NC})" home_size
+  home_size=${home_size:-$home_size_default}
+  validate_size "$home_size" && break
 done
 
 while true; do
-    read -p "$(echo -e ${CYAN}"Size for SWAP partition [${swap_size_default}]: "${NC})" swap_size
-    swap_size=${swap_size:-$swap_size_default}
-    validate_size "$swap_size" && break
+  read -p "$(echo -e ${CYAN}"Size for SWAP partition [${swap_size_default}]: "${NC})" swap_size
+  swap_size=${swap_size:-$swap_size_default}
+  validate_size "$swap_size" && break
 done
 
 print_info "Creating logical volumes with specified sizes..."
@@ -337,7 +338,6 @@ lvcreate -L $home_size vg0 -n home
 lvcreate -L $swap_size vg0 -n swap
 
 check_success "Logical volumes created successfully." "Failed to create logical volumes."
-
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Get mount options from user                                      │
@@ -418,34 +418,34 @@ read -p "$(echo -e ${CYAN}"Select a desktop environment [1-6]: "${NC})" de_choic
 case $de_choice in
 1) de_packages="" ;;
 2)
-	de_packages="gnome gnome-extra gdm"
-	de_service="gdm"
-	;;
+  de_packages="gnome gnome-extra gdm"
+  de_service="gdm"
+  ;;
 3)
-	de_packages="plasma kde-applications sddm"
-	de_service="sddm"
-	;;
+  de_packages="plasma kde-applications sddm"
+  de_service="sddm"
+  ;;
 4)
-	de_packages="xfce4 xfce4-goodies lightdm lightdm-gtk-greeter"
-	de_service="lightdm"
-	;;
+  de_packages="xfce4 xfce4-goodies lightdm lightdm-gtk-greeter"
+  de_service="lightdm"
+  ;;
 5)
-	de_packages="mate mate-extra lightdm lightdm-gtk-greeter"
-	de_service="lightdm"
-	;;
+  de_packages="mate mate-extra lightdm lightdm-gtk-greeter"
+  de_service="lightdm"
+  ;;
 6)
-	de_packages="i3-wm i3status i3lock dmenu lightdm lightdm-gtk-greeter xorg-server xorg-xinit"
-	de_service="lightdm"
-	;;
+  de_packages="i3-wm i3status i3lock dmenu lightdm lightdm-gtk-greeter xorg-server xorg-xinit"
+  de_service="lightdm"
+  ;;
 *)
-	de_packages=""
-	de_service=""
-	;;
+  de_packages=""
+  de_service=""
+  ;;
 esac
 
 if [ -n "$de_packages" ]; then
-	print_info "Adding desktop environment packages: $de_packages"
-	base_packages="$base_packages $de_packages"
+  print_info "Adding desktop environment packages: $de_packages"
+  base_packages="$base_packages $de_packages"
 fi
 
 print_info "Installing base packages: $base_packages"
@@ -469,11 +469,11 @@ echo
 
 # Confirm fstab looks good
 if confirm "Does the fstab look correct?"; then
-	mv /mnt/etc/fstab.new /mnt/etc/fstab
-	print_info "fstab saved."
+  mv /mnt/etc/fstab.new /mnt/etc/fstab
+  print_info "fstab saved."
 else
-	print_info "You can edit the fstab manually after installation."
-	exit 1
+  print_info "You can edit the fstab manually after installation."
+  exit 1
 fi
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -689,8 +689,8 @@ print_info "After reboot, you'll need to enter the disk encryption password."
 echo -e "${GREEN}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
 
 if confirm "Would you like to reboot now?"; then
-	print_info "Rebooting..."
-	reboot
+  print_info "Rebooting..."
+  reboot
 else
-	print_info "You can reboot manually when ready."
+  print_info "You can reboot manually when ready."
 fi
