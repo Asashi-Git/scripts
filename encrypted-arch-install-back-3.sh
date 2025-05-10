@@ -536,69 +536,14 @@ mkinitcpio -P
 
 # Timezone selection
 print_info "Setting timezone..."
-# Get all regions and count them
-regions=(\$(ls -1 /usr/share/zoneinfo | grep -v posix | grep -v right))
-region_count=\${#regions[@]}
-columns=3  # Display in 3 columns
-
+# List available regions
 echo "Available regions:"
-echo "┌────────────────────────────────────────────────────────────────┐"
-
-# Calculate items per column (rounded up)
-items_per_column=\$(((region_count + columns - 1) / columns))
-
-# Print regions in columns
-for (( i=0; i<items_per_column; i++ )); do
-    line="│"
-    for (( j=0; j<columns; j++ )); do
-        index=\$((j * items_per_column + i))
-        if [ \$index -lt \$region_count ]; then
-            # Pad each column to 25 characters
-            printf -v region_padded "%-25s" "\${regions[\$index]}"
-            line+=" \$region_padded"
-        else
-            # Empty padding for incomplete columns
-            line+=" \$(printf '%-25s' ' ')"
-        fi
-    done
-    line+=" │"
-    echo "\$line"
-done
-
-echo "└────────────────────────────────────────────────────────────────┘"
-
+ls -1 /usr/share/zoneinfo | grep -v posix | grep -v right
 read -p "Enter your region: " region
 
 if [ -d "/usr/share/zoneinfo/\$region" ]; then
-    # Display cities in columns too
-    cities=(\$(ls -1 /usr/share/zoneinfo/\$region))
-    city_count=\${#cities[@]}
-    
     echo "Cities in \$region:"
-    echo "┌────────────────────────────────────────────────────────────────┐"
-    
-    # Calculate items per column for cities (rounded up)
-    city_items_per_column=\$(((city_count + columns - 1) / columns))
-    
-    # Print cities in columns
-    for (( i=0; i<city_items_per_column; i++ )); do
-        line="│"
-        for (( j=0; j<columns; j++ )); do
-            index=\$((j * city_items_per_column + i))
-            if [ \$index -lt \$city_count ]; then
-                # Pad each column to 25 characters
-                printf -v city_padded "%-25s" "\${cities[\$index]}"
-                line+=" \$city_padded"
-            else
-                # Empty padding for incomplete columns
-                line+=" \$(printf '%-25s' ' ')"
-            fi
-        done
-        line+=" │"
-        echo "\$line"
-    done
-    
-    echo "└────────────────────────────────────────────────────────────────┘"
+    ls -1 /usr/share/zoneinfo/\$region
     read -p "Enter your city: " city
     
     if [ -f "/usr/share/zoneinfo/\$region/\$city" ]; then
