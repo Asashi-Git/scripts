@@ -119,7 +119,8 @@ confirm() {
 	local response
 
 	while true; do
-		read -p "${CYAN}${prompt} [y/n]:${NC} " response
+		echo -e -n "${CYAN}${prompt} [y/n]:${NC} "
+		read response
 		case $response in
 		[Yy]*) return 0 ;;
 		[Nn]*) return 1 ;;
@@ -135,10 +136,12 @@ get_yes_no() {
 
 	while true; do
 		if [[ "$default" == "y" ]]; then
-			read -p "${CYAN}${prompt} [Y/n]:${NC} " answer
+			echo -e -n "${CYAN}${prompt} [Y/n]:${NC} "
+			read answer
 			answer=${answer:-y}
 		else
-			read -p "${CYAN}${prompt} [y/N]:${NC} " answer
+			echo -e -n "${CYAN}${prompt} [y/N]:${NC} "
+			read answer
 			answer=${answer:-n}
 		fi
 
@@ -265,7 +268,8 @@ fi
 
 # Ask for SSH port
 while true; do
-	read -p "${CYAN}Enter the SSH port number that your server uses (default: 22):${NC} " SSH_PORT
+	echo -e -n "${CYAN}Enter the SSH port number that your server uses (default: 22):${NC} "
+	read SSH_PORT
 
 	# Use default port if empty input
 	if [ -z "$SSH_PORT" ]; then
@@ -288,7 +292,8 @@ if [ "$CUSTOM_CONFIG" = true ]; then
 	echo "Examples: 10m (10 minutes), 1h (1 hour), 1d (1 day), 1w (1 week)"
 
 	while true; do
-		read -p "${CYAN}Enter ban time (default: 10m):${NC} " BANTIME
+		echo -e -n "${CYAN}Enter ban time (default: 10m):${NC} "
+		read BANTIME
 
 		# Use default if empty input
 		if [ -z "$BANTIME" ]; then
@@ -310,7 +315,8 @@ if [ "$CUSTOM_CONFIG" = true ]; then
 	echo "If there are more than maxretry failures in this time window, the IP gets banned."
 
 	while true; do
-		read -p "${CYAN}Enter find time (default: 10m):${NC} " FINDTIME
+		echo -e -n "${CYAN}Enter find time (default: 10m):${NC} "
+		read FINDTIME
 
 		# Use default if empty input
 		if [ -z "$FINDTIME" ]; then
@@ -331,7 +337,8 @@ if [ "$CUSTOM_CONFIG" = true ]; then
 	echo "This is the number of failures allowed within the find time before an IP is banned."
 
 	while true; do
-		read -p "${CYAN}Enter max retries before banning (default: 5):${NC} " MAXRETRY
+		echo -e -n "${CYAN}Enter max retries before banning (default: 5):${NC} "
+		read MAXRETRY
 
 		# Use default if empty input
 		if [ -z "$MAXRETRY" ]; then
@@ -364,7 +371,8 @@ if get_yes_no "Do you want to enable email notifications for Fail2Ban events?" "
 	echo "This is the email address where notifications will be sent."
 
 	while true; do
-		read -p "${CYAN}Enter destination email address:${NC} " DEST_EMAIL
+		echo -e -n "${CYAN}Enter destination email address:${NC} "
+		read DEST_EMAIL
 
 		if [ -z "$DEST_EMAIL" ]; then
 			print_error "Email address can't be empty."
@@ -384,7 +392,8 @@ if get_yes_no "Do you want to enable email notifications for Fail2Ban events?" "
 	echo "This is the 'from' address that will appear on notification emails."
 
 	while true; do
-		read -p "${CYAN}Enter sender email address (default: root@$(hostname -f)):${NC} " SENDER_EMAIL
+		echo -e -n "${CYAN}Enter sender email address (default: root@$(hostname -f)):${NC} "
+		read SENDER_EMAIL
 
 		# Use default if empty input
 		if [ -z "$SENDER_EMAIL" ]; then
@@ -426,7 +435,8 @@ TEMP_IPS=()
 
 echo -e "${BLUE}Start entering IPs (one per line, press Enter twice when done):${NC}"
 while true; do
-	read -p "${CYAN}> ${NC}" IP
+	echo -e -n "${CYAN}> ${NC}"
+	read IP
 
 	# Break on empty line
 	if [ -z "$IP" ]; then
