@@ -151,7 +151,7 @@ print_section "SSH Port Configuration"
 
 # Ask user for SSH port
 while true; do
-	read -p "${CYAN}Enter SSH port (1024-65535):${NC} " SSH_PORT
+	read -e -n "${CYAN}Enter SSH port (1024-65535):${NC} " SSH_PORT
 
 	if validate_port "$SSH_PORT"; then
 		print_info "Using SSH port: $SSH_PORT"
