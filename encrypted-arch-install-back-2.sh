@@ -254,22 +254,16 @@ print_info "Detected system memory: ${ram_size_mb}MB"
 # Round up RAM size for swap partition
 if [ "$ram_size_mb" -le 2048 ]; then
 	rounded_ram="2G"
-	rounded_ram_mb=2048
 elif [ "$ram_size_mb" -le 4096 ]; then
 	rounded_ram="4G"
-	rounded_ram_mb=4096
 elif [ "$ram_size_mb" -le 8192 ]; then
 	rounded_ram="8G"
-	rounded_ram_mb=8192
 elif [ "$ram_size_mb" -le 16384 ]; then
 	rounded_ram="16G"
-	rounded_ram_mb=16384
 elif [ "$ram_size_mb" -le 32768 ]; then
 	rounded_ram="32G"
-	rounded_ram_mb=32768
 else
 	rounded_ram="64G"
-	rounded_ram_mb=65536
 fi
 print_info "Rounded RAM size for swap partition: ${rounded_ram}"
 
@@ -277,8 +271,8 @@ print_info "Rounded RAM size for swap partition: ${rounded_ram}"
 disk_size_mb=$(lsblk -b $disk_path -o SIZE | sed -n '2p' | awk '{print int($1/1024/1024)}')
 print_info "Detected disk size: ${disk_size_mb}MB"
 
-# Calculate available space AFTER subtracting EFI partition (512MB) AND swap partition (rounded RAM)
-available_space_mb=$((disk_size_mb - 512 - rounded_ram_mb))
+# Calculate available space after EFI partition (512MB)
+available_space_mb=$((disk_size_mb - 512))
 print_info "Available space for LVM partitions: ${available_space_mb}MB"
 
 # Calculate default sizes based on percentages (25% root, 15% var, 20% usr, 10% data, 30% home)
@@ -287,7 +281,7 @@ var_size_default="$((available_space_mb * 15 / 100))M"
 usr_size_default="$((available_space_mb * 20 / 100))M"
 data_size_default="$((available_space_mb * 10 / 100))M"
 home_size_default="$((available_space_mb * 30 / 100))M"
-swap_size_default="${rounded_ram}" # Using rounded RAM value
+swap_size_default="${rounded_ram}" # Using rounded RAM value instead of exact size
 
 print_info "Suggested partition sizes based on disk size and RAM:"
 echo -e "${CYAN}┌──────────────────────────────────────────────────────────┐${NC}"
