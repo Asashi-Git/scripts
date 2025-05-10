@@ -29,86 +29,86 @@ BACKUP_DIR="/root/ssh_hardening_backup"
 # └─────────────────────────────────────────────────────────────────┘
 # Function to print section headers
 print_section() {
-	echo -e "\n${BLUE}${BOLD}╔════════════ $1 ════════════╗${NC}\n"
+  echo -e "\n${BLUE}${BOLD}╔════════════ $1 ════════════╗${NC}\n"
 }
 
 # Function to print information
 print_info() {
-	echo -e "${GREEN}${BOLD}[INFO]${NC} $1"
+  echo -e "${GREEN}${BOLD}[INFO]${NC} $1"
 }
 
 # Function to print warnings
 print_warning() {
-	echo -e "${YELLOW}${BOLD}[WARNING]${NC} $1"
+  echo -e "${YELLOW}${BOLD}[WARNING]${NC} $1"
 }
 
 # Function to print errors
 print_error() {
-	echo -e "${RED}${BOLD}[ERROR]${NC} $1"
+  echo -e "${RED}${BOLD}[ERROR]${NC} $1"
 }
 
 # Function to check if a command executed successfully
 check_success() {
-	if [ $? -eq 0 ]; then
-		print_info "$1"
-	else
-		print_error "$2"
-		exit 1
-	fi
+  if [ $? -eq 0 ]; then
+    print_info "$1"
+  else
+    print_error "$2"
+    exit 1
+  fi
 }
 
 # Function to validate port number
 validate_port() {
-	local port=$1
+  local port=$1
 
-	# Check if port is a number
-	if ! [[ "$port" =~ ^[0-9]+$ ]]; then
-		print_error "Port must be a number"
-		return 1
-	fi
+  # Check if port is a number
+  if ! [[ "$port" =~ ^[0-9]+$ ]]; then
+    print_error "Port must be a number"
+    return 1
+  fi
 
-	# Check if port is in the valid range (1024-65535)
-	if [ "$port" -lt 1024 ] || [ "$port" -gt 65535 ]; then
-		print_error "Port must be between 1024 and 65535"
-		return 1
-	fi
+  # Check if port is in the valid range (1024-65535)
+  if [ "$port" -lt 1024 ] || [ "$port" -gt 65535 ]; then
+    print_error "Port must be between 1024 and 65535"
+    return 1
+  fi
 
-	# Check if port is already in use
-	if ss -tuln | grep -q ":$port "; then
-		print_error "Port $port is already in use by another service"
-		return 1
-	fi
+  # Check if port is already in use
+  if ss -tuln | grep -q ":$port "; then
+    print_error "Port $port is already in use by another service"
+    return 1
+  fi
 
-	return 0
+  return 0
 }
 
 # Function to validate username
 validate_username() {
-	local username=$1
+  local username=$1
 
-	# Check if username exists
-	if ! id "$username" &>/dev/null; then
-		print_error "User '$username' does not exist"
-		return 1
-	fi
+  # Check if username exists
+  if ! id "$username" &>/dev/null; then
+    print_error "User '$username' does not exist"
+    return 1
+  fi
 
-	return 0
+  return 0
 }
 
 # Function to backup a file before modifying
 backup_file() {
-	local file=$1
-	local backup="${BACKUP_DIR}/$(basename ${file}).bak.$(date +%Y%m%d%H%M%S)"
-	cp "$file" "$backup"
-	print_info "Backed up $file to $backup"
+  local file=$1
+  local backup="${BACKUP_DIR}/$(basename ${file}).bak.$(date +%Y%m%d%H%M%S)"
+  cp "$file" "$backup"
+  print_info "Backed up $file to $backup"
 }
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Check if running as root                                         │
 # └─────────────────────────────────────────────────────────────────┘
 if [[ $EUID -ne 0 ]]; then
-	print_error "This script must be run as root"
-	exit 1
+  print_error "This script must be run as root"
+  exit 1
 fi
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -151,14 +151,15 @@ print_section "SSH Port Configuration"
 
 # Ask user for SSH port
 while true; do
-	read -e -n "${CYAN}Enter SSH port (1024-65535):${NC} " SSH_PORT
+  read -e -n "${CYAN}Enter SSH port (1024-65535):${NC} "
+  read SSH_PORT
 
-	if validate_port "$SSH_PORT"; then
-		print_info "Using SSH port: $SSH_PORT"
-		break
-	else
-		print_warning "Invalid port, please try again."
-	fi
+  if validate_port "$SSH_PORT"; then
+    print_info "Using SSH port: $SSH_PORT"
+    break
+  else
+    print_warning "Invalid port, please try again."
+  fi
 done
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -168,19 +169,19 @@ print_section "User Selection"
 
 # Ask user for username
 while true; do
-	# List available users for convenience
-	echo -e "${BLUE}Available non-system users:${NC}"
-	awk -F: '$3 >= 1000 && $3 != 65534 {print $1}' /etc/passwd
+  # List available users for convenience
+  echo -e "${BLUE}Available non-system users:${NC}"
+  awk -F: '$3 >= 1000 && $3 != 65534 {print $1}' /etc/passwd
 
-	# Ask for username
-	read -p "${CYAN}Enter username for SSH hardening:${NC} " USERNAME
+  # Ask for username
+  read -p "${CYAN}Enter username for SSH hardening:${NC} " USERNAME
 
-	if validate_username "$USERNAME"; then
-		print_info "Hardening SSH for user: $USERNAME"
-		break
-	else
-		print_warning "Invalid username, please try again."
-	fi
+  if validate_username "$USERNAME"; then
+    print_info "Hardening SSH for user: $USERNAME"
+    break
+  else
+    print_warning "Invalid username, please try again."
+  fi
 done
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -287,22 +288,22 @@ print_info "SSH directory set up."
 
 # Generate RSA key pair if it doesn't exist
 if [ ! -f "$RSA_KEY_PATH" ]; then
-	print_info "Generating new 4096-bit RSA key pair for $USERNAME..."
-	sudo -u $USERNAME ssh-keygen -t rsa -b 4096 -f $RSA_KEY_PATH -N ""
-	check_success "RSA key pair generated." "Failed to generate RSA key pair."
+  print_info "Generating new 4096-bit RSA key pair for $USERNAME..."
+  sudo -u $USERNAME ssh-keygen -t rsa -b 4096 -f $RSA_KEY_PATH -N ""
+  check_success "RSA key pair generated." "Failed to generate RSA key pair."
 else
-	print_info "RSA key pair already exists."
+  print_info "RSA key pair already exists."
 fi
 
 # Add the public key to authorized_keys
 if [ -f "$PUB_KEY_PATH" ]; then
-	sudo -u $USERNAME bash -c "cat $PUB_KEY_PATH >> $AUTH_KEYS_PATH"
-	chmod 600 $AUTH_KEYS_PATH
-	chown $USERNAME:$USERNAME $AUTH_KEYS_PATH
-	print_info "Public key added to authorized_keys."
+  sudo -u $USERNAME bash -c "cat $PUB_KEY_PATH >> $AUTH_KEYS_PATH"
+  chmod 600 $AUTH_KEYS_PATH
+  chown $USERNAME:$USERNAME $AUTH_KEYS_PATH
+  print_info "Public key added to authorized_keys."
 else
-	print_error "Public key not found. RSA key setup might have failed."
-	exit 1
+  print_error "Public key not found. RSA key setup might have failed."
+  exit 1
 fi
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -343,12 +344,12 @@ print_warning "Do not close your current session until you've verified that you 
 
 # Generate QR code for easy key transfer (if qrencode is available)
 if command -v qrencode >/dev/null; then
-	KEY_QR_PATH="/home/$USERNAME/id_rsa_qr.png"
-	print_info "Generating QR code of private key for secure transfer..."
-	qrencode -o $KEY_QR_PATH -r $RSA_KEY_PATH
-	chown $USERNAME:$USERNAME $KEY_QR_PATH
-	print_info "QR code of private key saved to: $KEY_QR_PATH"
-	print_info "You can scan this QR code to transfer the key to mobile devices."
+  KEY_QR_PATH="/home/$USERNAME/id_rsa_qr.png"
+  print_info "Generating QR code of private key for secure transfer..."
+  qrencode -o $KEY_QR_PATH -r $RSA_KEY_PATH
+  chown $USERNAME:$USERNAME $KEY_QR_PATH
+  print_info "QR code of private key saved to: $KEY_QR_PATH"
+  print_info "You can scan this QR code to transfer the key to mobile devices."
 fi
 
 echo
