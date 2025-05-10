@@ -29,92 +29,86 @@ BACKUP_DIR="/root/ssh_hardening_backup"
 # └─────────────────────────────────────────────────────────────────┘
 # Function to print section headers
 print_section() {
-  echo -e "\n${BLUE}${BOLD}╔════════════ $1 ════════════╗${NC}\n"
+	echo -e "\n${BLUE}${BOLD}╔════════════ $1 ════════════╗${NC}\n"
 }
 
 # Function to print information
 print_info() {
-  echo -e "${GREEN}${BOLD}[INFO]${NC} $1"
+	echo -e "${GREEN}${BOLD}[INFO]${NC} $1"
 }
 
 # Function to print warnings
 print_warning() {
-  echo -e "${YELLOW}${BOLD}[WARNING]${NC} $1"
+	echo -e "${YELLOW}${BOLD}[WARNING]${NC} $1"
 }
 
 # Function to print errors
 print_error() {
-  echo -e "${RED}${BOLD}[ERROR]${NC} $1"
-}
-
-# Function for colored input prompts
-prompt_user() {
-  echo -e -n "${CYAN}$1${NC} "
-  read "$2"
+	echo -e "${RED}${BOLD}[ERROR]${NC} $1"
 }
 
 # Function to check if a command executed successfully
 check_success() {
-  if [ $? -eq 0 ]; then
-    print_info "$1"
-  else
-    print_error "$2"
-    exit 1
-  fi
+	if [ $? -eq 0 ]; then
+		print_info "$1"
+	else
+		print_error "$2"
+		exit 1
+	fi
 }
 
 # Function to validate port number
 validate_port() {
-  local port=$1
+	local port=$1
 
-  # Check if port is a number
-  if ! [[ "$port" =~ ^[0-9]+$ ]]; then
-    print_error "Port must be a number"
-    return 1
-  fi
+	# Check if port is a number
+	if ! [[ "$port" =~ ^[0-9]+$ ]]; then
+		print_error "Port must be a number"
+		return 1
+	fi
 
-  # Check if port is in the valid range (1024-65535)
-  if [ "$port" -lt 1024 ] || [ "$port" -gt 65535 ]; then
-    print_error "Port must be between 1024 and 65535"
-    return 1
-  fi
+	# Check if port is in the valid range (1024-65535)
+	if [ "$port" -lt 1024 ] || [ "$port" -gt 65535 ]; then
+		print_error "Port must be between 1024 and 65535"
+		return 1
+	fi
 
-  # Check if port is already in use
-  if ss -tuln | grep -q ":$port "; then
-    print_error "Port $port is already in use by another service"
-    return 1
-  fi
+	# Check if port is already in use
+	if ss -tuln | grep -q ":$port "; then
+		print_error "Port $port is already in use by another service"
+		return 1
+	fi
 
-  return 0
+	return 0
 }
 
 # Function to validate username
 validate_username() {
-  local username=$1
+	local username=$1
 
-  # Check if username exists
-  if ! id "$username" &>/dev/null; then
-    print_error "User '$username' does not exist"
-    return 1
-  fi
+	# Check if username exists
+	if ! id "$username" &>/dev/null; then
+		print_error "User '$username' does not exist"
+		return 1
+	fi
 
-  return 0
+	return 0
 }
 
 # Function to backup a file before modifying
 backup_file() {
-  local file=$1
-  local backup="${BACKUP_DIR}/$(basename ${file}).bak.$(date +%Y%m%d%H%M%S)"
-  cp "$file" "$backup"
-  print_info "Backed up $file to $backup"
+	local file=$1
+	local backup="${BACKUP_DIR}/$(basename ${file}).bak.$(date +%Y%m%d%H%M%S)"
+	cp "$file" "$backup"
+	print_info "Backed up $file to $backup"
 }
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Check if running as root                                         │
 # └─────────────────────────────────────────────────────────────────┘
 if [[ $EUID -ne 0 ]]; then
-  print_error "This script must be run as root"
-  exit 1
+	print_error "This script must be run as root"
+	exit 1
 fi
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -133,198 +127,182 @@ cat <<"EOF"
   ██╔════╝██╔════╝██║  ██║    ██║  ██║██╔══██╗██╔══██╗██╔══██╗██╔════╝████╗  ██║██║████╗  ██║██╔════╝ 
   ███████╗███████╗███████║    ███████║███████║██████╔╝██║  ██║█████╗  ██╔██╗ ██║██║██╔██╗ ██║██║  ███╗
   ╚════██║╚════██║██╔══██║    ██╔══██║██╔══██║██╔══██╗██║  ██║██╔══╝  ██║╚██╗██║██║██║╚██╗██║██║   ██║
-  ███████║███████║███████║██║  ██║    ███████║███████╗██║  ██║ ╚████╔╝ ███████╗██║  ██║
-  ╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝    ╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝
+  ███████║███████║██║  ██║    ██║  ██║██║  ██║██║  ██║██████╔╝███████╗██║ ╚████║██║██║ ╚████║╚██████╔╝
+  ╚══════╝╚══════╝╚═╝  ╚═╝    ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═══╝ ╚═════╝ 
 EOF
 echo -e "${NC}"
-
-echo -e "${GREEN}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
-print_info "This script will install and harden SSH on your Arch Linux system."
-print_info "It will set up key-based authentication and disable password login."
-print_info "You will need to specify a user for SSH access and a custom port."
-echo -e "${GREEN}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
-
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Install SSH if not already installed                             │
-# └─────────────────────────────────────────────────────────────────┘
-print_section "Installing OpenSSH"
-
-if ! pacman -Q openssh &>/dev/null; then
-  print_info "Installing OpenSSH package..."
-  pacman -Sy --noconfirm openssh
-  check_success "OpenSSH installed successfully." "Failed to install OpenSSH."
-else
-  print_info "OpenSSH is already installed."
-fi
+echo
+echo -e "${MAGENTA}"
+cat <<"EOF"
+  ███████╗ ██████╗ ██████╗      █████╗ ██████╗  ██████╗██╗  ██╗    ██╗     ██╗███╗   ██╗██╗   ██╗██╗  ██╗
+  ██╔════╝██╔═══██╗██╔══██╗    ██╔══██╗██╔══██╗██╔════╝██║  ██║    ██║     ██║████╗  ██║██║   ██║╚██╗██╔╝
+  █████╗  ██║   ██║██████╔╝    ███████║██████╔╝██║     ███████║    ██║     ██║██╔██╗ ██║██║   ██║ ╚███╔╝ 
+  ██╔══╝  ██║   ██║██╔══██╗    ██╔══██║██╔══██╗██║     ██╔══██║    ██║     ██║██║╚██╗██║██║   ██║ ██╔██╗ 
+  ██║     ╚██████╔╝██║  ██║    ██║  ██║██║  ██║╚██████╗██║  ██║    ███████╗██║██║ ╚████║╚██████╔╝██╔╝ ██╗
+  ╚═╝      ╚═════╝ ╚═╝  ╚═╝    ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝    ╚══════╝╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝
+EOF
+echo -e "${NC}"
+echo
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ Get SSH port for configuration                                   │
+# │ SSH Port Configuration                                           │
 # └─────────────────────────────────────────────────────────────────┘
 print_section "SSH Port Configuration"
 
+# Ask user for SSH port
 while true; do
-  echo -e -n "${CYAN}Enter SSH port (1024-65535):${NC} "
-  read SSH_PORT
+	read -p "${CYAN}Enter SSH port (1024-65535):${NC} " SSH_PORT
 
-  if validate_port "$SSH_PORT"; then
-    print_info "Using port $SSH_PORT for SSH."
-    break
-  fi
+	if validate_port "$SSH_PORT"; then
+		print_info "Using SSH port: $SSH_PORT"
+		break
+	else
+		print_warning "Invalid port, please try again."
+	fi
 done
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ Select user for SSH hardening                                    │
+# │ User Selection                                                   │
 # └─────────────────────────────────────────────────────────────────┘
 print_section "User Selection"
 
+# Ask user for username
 while true; do
-  # List available users for convenience
-  echo -e "${BLUE}Available non-system users:${NC}"
-  awk -F: '$3 >= 1000 && $3 != 65534 {print $1}' /etc/passwd
+	# List available users for convenience
+	echo -e "${BLUE}Available non-system users:${NC}"
+	awk -F: '$3 >= 1000 && $3 != 65534 {print $1}' /etc/passwd
 
-  # Ask for username
-  echo -e -n "${CYAN}Enter username for SSH hardening:${NC} "
-  read USERNAME
+	# Ask for username
+	read -p "${CYAN}Enter username for SSH hardening:${NC} " USERNAME
 
-  if validate_username "$USERNAME"; then
-    print_info "Using user '$USERNAME' for SSH hardening."
-    break
-  fi
+	if validate_username "$USERNAME"; then
+		print_info "Hardening SSH for user: $USERNAME"
+		break
+	else
+		print_warning "Invalid username, please try again."
+	fi
 done
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ Create SSH directory for the user                                │
+# │ Package Installation                                             │
 # └─────────────────────────────────────────────────────────────────┘
-print_section "Creating SSH Directory Structure"
+print_section "Installing Required Packages"
 
-USER_SSH_DIR="/home/$USERNAME/.ssh"
-AUTH_KEYS_PATH="$USER_SSH_DIR/authorized_keys"
-
-if [ ! -d "$USER_SSH_DIR" ]; then
-  mkdir -p "$USER_SSH_DIR"
-  chmod 700 "$USER_SSH_DIR"
-  chown "$USERNAME:$USERNAME" "$USER_SSH_DIR"
-  print_info "Created SSH directory for $USERNAME"
-else
-  print_info "SSH directory already exists for $USERNAME"
-fi
-
-if [ ! -f "$AUTH_KEYS_PATH" ]; then
-  touch "$AUTH_KEYS_PATH"
-  chmod 600 "$AUTH_KEYS_PATH"
-  chown "$USERNAME:$USERNAME" "$AUTH_KEYS_PATH"
-  print_info "Created authorized_keys file for $USERNAME"
-else
-  print_info "authorized_keys file already exists for $USERNAME"
-fi
+print_info "Installing openssh, libpam-google-authenticator, and qrencode..."
+pacman -Sy --noconfirm openssh libpam-google-authenticator qrencode
+check_success "Packages installed successfully." "Failed to install packages. Check your internet connection and package availability."
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ Backup and configure SSH                                         │
+# │ Configuration Backup                                             │
 # └─────────────────────────────────────────────────────────────────┘
-print_section "SSH Configuration"
+print_section "Backing Up SSH Configuration"
 
-# Backup original SSH configuration
 backup_file $SSH_CONFIG
+print_info "Configuration backed up."
 
-# Create new SSH configuration file with hardened settings
-print_info "Creating hardened SSH configuration..."
-cat >$SSH_CONFIG <<EOF
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ SSH Service Configuration                                        │
+# └─────────────────────────────────────────────────────────────────┘
+print_section "Configuring SSH Service"
+
+# Enable and start SSH service
+systemctl enable sshd
+systemctl start sshd
+check_success "SSH service enabled and started." "Failed to enable or start SSH service."
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ SSH Hardening Configuration                                      │
+# └─────────────────────────────────────────────────────────────────┘
+print_section "Hardening SSH Configuration"
+
+# Create a new sshd_config with our secure settings
+cat >$SSH_CONFIG.new <<EOF
 # SSH Server Configuration
-# Hardened by SSH Hardening Script
+# Hardened by setup script on $(date)
 
-# Basic Configuration
+# Basic SSH settings
 Port $SSH_PORT
 Protocol 2
-AddressFamily inet
 HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_ecdsa_key
 HostKey /etc/ssh/ssh_host_ed25519_key
+
+# Authentication settings
+PermitRootLogin no
+PubkeyAuthentication yes
+PasswordAuthentication no
+AuthorizedKeysFile .ssh/authorized_keys
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+
+# Login restrictions
+MaxAuthTries 3
+MaxSessions 5
+LoginGraceTime 30
+
+# Connection settings
+X11Forwarding no
+TCPKeepAlive yes
+ClientAliveInterval 300
+ClientAliveCountMax 2
+
+# Security settings
+UsePAM yes
+PrintMotd no
+PrintLastLog yes
+UsePrivilegeSeparation sandbox
+StrictModes yes
+
+# Allow specific users (uncomment and modify as needed)
+AllowUsers $USERNAME
 
 # Logging
 SyslogFacility AUTH
 LogLevel VERBOSE
-
-# Authentication
-LoginGraceTime 30s
-PermitRootLogin no
-StrictModes yes
-MaxAuthTries 3
-MaxSessions 5
-
-# Only allow the specified user to login
-AllowUsers $USERNAME
-
-# Disable password authentication
-PasswordAuthentication no
-PermitEmptyPasswords no
-ChallengeResponseAuthentication no
-
-# Enable key-based authentication
-PubkeyAuthentication yes
-AuthorizedKeysFile .ssh/authorized_keys
-
-# Disable other authentication methods
-HostbasedAuthentication no
-IgnoreRhosts yes
-UsePAM yes
-
-# Hardening Options
-X11Forwarding no
-AllowAgentForwarding no
-AllowTcpForwarding no
-PermitTunnel no
-PermitUserEnvironment no
-PrintMotd no
-UseDNS no
-
-# Session/Connection Settings
-TCPKeepAlive yes
-ClientAliveInterval 60
-ClientAliveCountMax 3
-Compression delayed
-MaxStartups 10:30:100
-PermitTTY yes
-
-# GSSAPI options
-GSSAPIAuthentication no
-GSSAPICleanupCredentials yes
-
-# Misc Options
-AcceptEnv LANG LC_*
-Banner none
-DebianBanner no
-
-# End of SSH Server Configuration
 EOF
 
-check_success "SSH configuration created successfully." "Failed to create SSH configuration."
+# Check if the new configuration is valid
+sshd -t -f $SSH_CONFIG.new
+check_success "New SSH configuration is valid." "New SSH configuration is invalid. Check $SSH_CONFIG.new for errors."
+
+# Apply the new configuration
+mv $SSH_CONFIG.new $SSH_CONFIG
+print_info "SSH configuration hardened."
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ Generate SSH key for the user                                    │
+# │ RSA Key Authentication Setup                                     │
 # └─────────────────────────────────────────────────────────────────┘
-print_section "SSH Key Generation"
+print_section "Setting Up RSA Key Authentication"
 
-print_info "Generating RSA key pair for $USERNAME..."
+# Define key paths
 RSA_KEY_PATH="/home/$USERNAME/.ssh/id_rsa"
 PUB_KEY_PATH="/home/$USERNAME/.ssh/id_rsa.pub"
+AUTH_KEYS_PATH="/home/$USERNAME/.ssh/authorized_keys"
 
-# Generate RSA key pair
+# Create .ssh directory if it doesn't exist
+mkdir -p /home/$USERNAME/.ssh
+chmod 700 /home/$USERNAME/.ssh
+chown $USERNAME:$USERNAME /home/$USERNAME/.ssh
+print_info "SSH directory set up."
+
+# Generate RSA key pair if it doesn't exist
 if [ ! -f "$RSA_KEY_PATH" ]; then
-  sudo -u $USERNAME ssh-keygen -t rsa -b 4096 -f "$RSA_KEY_PATH" -N ""
-  chmod 600 $RSA_KEY_PATH
-  check_success "RSA key pair generated successfully." "Failed to generate RSA key pair."
+	print_info "Generating new 4096-bit RSA key pair for $USERNAME..."
+	sudo -u $USERNAME ssh-keygen -t rsa -b 4096 -f $RSA_KEY_PATH -N ""
+	check_success "RSA key pair generated." "Failed to generate RSA key pair."
 else
-  print_info "RSA key already exists. Skipping key generation."
+	print_info "RSA key pair already exists."
 fi
 
 # Add the public key to authorized_keys
 if [ -f "$PUB_KEY_PATH" ]; then
-  sudo -u $USERNAME bash -c "cat $PUB_KEY_PATH >> $AUTH_KEYS_PATH"
-  chmod 600 $AUTH_KEYS_PATH
-  chown $USERNAME:$USERNAME $AUTH_KEYS_PATH
-  print_info "Public key added to authorized_keys."
+	sudo -u $USERNAME bash -c "cat $PUB_KEY_PATH >> $AUTH_KEYS_PATH"
+	chmod 600 $AUTH_KEYS_PATH
+	chown $USERNAME:$USERNAME $AUTH_KEYS_PATH
+	print_info "Public key added to authorized_keys."
 else
-  print_error "Public key not found. RSA key setup might have failed."
-  exit 1
+	print_error "Public key not found. RSA key setup might have failed."
+	exit 1
 fi
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -365,12 +343,12 @@ print_warning "Do not close your current session until you've verified that you 
 
 # Generate QR code for easy key transfer (if qrencode is available)
 if command -v qrencode >/dev/null; then
-  KEY_QR_PATH="/home/$USERNAME/id_rsa_qr.png"
-  print_info "Generating QR code of private key for secure transfer..."
-  qrencode -o $KEY_QR_PATH -r $RSA_KEY_PATH
-  chown $USERNAME:$USERNAME $KEY_QR_PATH
-  print_info "QR code of private key saved to: $KEY_QR_PATH"
-  print_info "You can scan this QR code to transfer the key to mobile devices."
+	KEY_QR_PATH="/home/$USERNAME/id_rsa_qr.png"
+	print_info "Generating QR code of private key for secure transfer..."
+	qrencode -o $KEY_QR_PATH -r $RSA_KEY_PATH
+	chown $USERNAME:$USERNAME $KEY_QR_PATH
+	print_info "QR code of private key saved to: $KEY_QR_PATH"
+	print_info "You can scan this QR code to transfer the key to mobile devices."
 fi
 
 echo
