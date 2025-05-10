@@ -47,7 +47,8 @@ confirm() {
 	local response
 
 	while true; do
-		read -p "${CYAN}${prompt} [y/n]:${NC} " response
+		echo -e -n "${CYAN}${prompt} [y/n]:${NC} "
+		read response
 		case $response in
 		[Yy]*) return 0 ;;
 		[Nn]*) return 1 ;;
