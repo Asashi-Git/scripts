@@ -245,15 +245,88 @@ check_success "Volume group created successfully." "Failed to create volume grou
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Get partition sizes from user                                    │
 # └─────────────────────────────────────────────────────────────────┘
-print_info "Setting up logical volumes. Please specify sizes for each partition."
+print_section "Setting up Partitions"
+
+# Get RAM size in MB
+ram_size_mb=$(free -m | awk '/^Mem:/{print $2}')
+print_info "Detected system memory: ${ram_size_mb}MB"
+
+# Get total disk size in MB
+disk_size_mb=$(lsblk -b $disk_path -o SIZE | sed -n '2p' | awk '{print int($1/1024/1024)}')
+print_info "Detected disk size: ${disk_size_mb}MB"
+
+# Calculate available space after EFI partition (512MB) and swap partition (equal to RAM)
+available_space_mb=$((disk_size_mb - 512 - ram_size_mb))
+print_info "Available space for LVM partitions: ${available_space_mb}MB"
+
+# Calculate default sizes based on percentages (25% root, 15% var, 20% usr, 10% data, 30% home)
+root_size_default="$((available_space_mb * 25 / 100))M"
+var_size_default="$((available_space_mb * 15 / 100))M"
+usr_size_default="$((available_space_mb * 20 / 100))M"
+data_size_default="$((available_space_mb * 10 / 100))M"
+home_size_default="$((available_space_mb * 30 / 100))M"
+swap_size_default="${ram_size_mb}M"
+
+print_info "Suggested partition sizes based on disk size and RAM:"
 echo -e "${CYAN}┌──────────────────────────────────────────────────────────┐${NC}"
-read -p "$(echo -e ${CYAN}"Size for ROOT partition (e.g., 20G): "${NC})" root_size
-read -p "$(echo -e ${CYAN}"Size for VAR partition (e.g., 15G): "${NC})" var_size
-read -p "$(echo -e ${CYAN}"Size for USR partition (e.g., 20G): "${NC})" usr_size
-read -p "$(echo -e ${CYAN}"Size for DATA partition (e.g., 10G): "${NC})" data_size
-read -p "$(echo -e ${CYAN}"Size for HOME partition (e.g., 30G): "${NC})" home_size
-read -p "$(echo -e ${CYAN}"Size for SWAP partition (e.g., 8G): "${NC})" swap_size
+echo -e "${CYAN}│${NC} EFI partition: 512M (fixed)"
+echo -e "${CYAN}│${NC} ROOT partition: ${root_size_default} (25% of available space)"
+echo -e "${CYAN}│${NC} VAR partition: ${var_size_default} (15% of available space)"
+echo -e "${CYAN}│${NC} USR partition: ${usr_size_default} (20% of available space)"
+echo -e "${CYAN}│${NC} DATA partition: ${data_size_default} (10% of available space)"
+echo -e "${CYAN}│${NC} HOME partition: ${home_size_default} (30% of available space)"
+echo -e "${CYAN}│${NC} SWAP partition: ${swap_size_default} (equal to RAM size)"
 echo -e "${CYAN}└──────────────────────────────────────────────────────────┘${NC}"
+
+print_info "You can accept the suggested sizes or specify your own."
+
+# Function to validate size format
+validate_size() {
+    local size=$1
+    if [[  $ size =~ ^[0-9]+[MG] $  ]]; then
+        return 0
+    else
+        print_error "Invalid size format. Please use format like '20G' or '500M'"
+        return 1
+    fi
+}
+
+# Get user input for each partition size with defaults
+while true; do
+    read -p "$(echo -e ${CYAN}"Size for ROOT partition [${root_size_default}]: "${NC})" root_size
+    root_size=${root_size:-$root_size_default}
+    validate_size "$root_size" && break
+done
+
+while true; do
+    read -p "$(echo -e ${CYAN}"Size for VAR partition [${var_size_default}]: "${NC})" var_size
+    var_size=${var_size:-$var_size_default}
+    validate_size "$var_size" && break
+done
+
+while true; do
+    read -p "$(echo -e ${CYAN}"Size for USR partition [${usr_size_default}]: "${NC})" usr_size
+    usr_size=${usr_size:-$usr_size_default}
+    validate_size "$usr_size" && break
+done
+
+while true; do
+    read -p "$(echo -e ${CYAN}"Size for DATA partition [${data_size_default}]: "${NC})" data_size
+    data_size=${data_size:-$data_size_default}
+    validate_size "$data_size" && break
+done
+
+while true; do
+    read -p "$(echo -e ${CYAN}"Size for HOME partition [${home_size_default}]: "${NC})" home_size
+    home_size=${home_size:-$home_size_default}
+    validate_size "$home_size" && break
+done
+
+while true; do
+    read -p "$(echo -e ${CYAN}"Size for SWAP partition [${swap_size_default}]: "${NC})" swap_size
+    swap_size=${swap_size:-$swap_size_default}
+    validate_size "$swap_size" && break
+done
 
 print_info "Creating logical volumes with specified sizes..."
 lvcreate -L $root_size vg0 -n root
@@ -264,6 +337,7 @@ lvcreate -L $home_size vg0 -n home
 lvcreate -L $swap_size vg0 -n swap
 
 check_success "Logical volumes created successfully." "Failed to create logical volumes."
+
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Get mount options from user                                      │
