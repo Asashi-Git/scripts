@@ -1,5 +1,5 @@
 https://github.com/Asashi-Git/scripts.git
 
-curl -o encrypted-arch-install.sh https://raw.githubusercontent.com/Asashi-Git/scripts/main/encrypted-arch-install.sh
+curl -o encrypted-arch-install.sh https://raw.githubusercontent.com/Asashi-Git/scripts/main/encrypted-ArchLinux/encrypted-arch-install.sh
 
-curl -o
+curl -o downloading-scripts.sh https://raw.githubusercontent.com/Asashi-Git/scripts/main/hardened-ArchLinux/downloading-scripts/sh

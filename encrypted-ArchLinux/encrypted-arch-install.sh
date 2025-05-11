@@ -245,15 +245,110 @@ check_success "Volume group created successfully." "Failed to create volume grou
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Get partition sizes from user                                    │
 # └─────────────────────────────────────────────────────────────────┘
-print_info "Setting up logical volumes. Please specify sizes for each partition."
+print_section "Setting up Partitions"
+
+# Get RAM size in MB
+ram_size_mb=$(free -m | awk '/^Mem:/{print $2}')
+print_info "Detected system memory: ${ram_size_mb}MB"
+
+# Round up RAM size for swap partition
+if [ "$ram_size_mb" -le 2048 ]; then
+	rounded_ram="2G"
+	rounded_ram_mb=2048
+elif [ "$ram_size_mb" -le 4096 ]; then
+	rounded_ram="4G"
+	rounded_ram_mb=4096
+elif [ "$ram_size_mb" -le 8192 ]; then
+	rounded_ram="8G"
+	rounded_ram_mb=8192
+elif [ "$ram_size_mb" -le 16384 ]; then
+	rounded_ram="16G"
+	rounded_ram_mb=16384
+elif [ "$ram_size_mb" -le 32768 ]; then
+	rounded_ram="32G"
+	rounded_ram_mb=32768
+else
+	rounded_ram="64G"
+	rounded_ram_mb=65536
+fi
+print_info "Rounded RAM size for swap partition: ${rounded_ram}"
+
+# Get total disk size in MB
+disk_size_mb=$(lsblk -b $disk_path -o SIZE | sed -n '2p' | awk '{print int($1/1024/1024)}')
+print_info "Detected disk size: ${disk_size_mb}MB"
+
+# Calculate available space AFTER subtracting EFI partition (512MB) AND swap partition (rounded RAM)
+available_space_mb=$((disk_size_mb - 512 - rounded_ram_mb))
+print_info "Available space for LVM partitions: ${available_space_mb}MB"
+
+# Calculate default sizes based on percentages (25% root, 15% var, 20% usr, 10% data, 30% home)
+root_size_default="$((available_space_mb * 25 / 100))M"
+var_size_default="$((available_space_mb * 15 / 100))M"
+usr_size_default="$((available_space_mb * 20 / 100))M"
+data_size_default="$((available_space_mb * 10 / 100))M"
+home_size_default="$((available_space_mb * 30 / 100))M"
+swap_size_default="${rounded_ram}" # Using rounded RAM value
+
+print_info "Suggested partition sizes based on disk size and RAM:"
 echo -e "${CYAN}┌──────────────────────────────────────────────────────────┐${NC}"
-read -p "$(echo -e ${CYAN}"Size for ROOT partition (e.g., 20G): "${NC})" root_size
-read -p "$(echo -e ${CYAN}"Size for VAR partition (e.g., 15G): "${NC})" var_size
-read -p "$(echo -e ${CYAN}"Size for USR partition (e.g., 20G): "${NC})" usr_size
-read -p "$(echo -e ${CYAN}"Size for DATA partition (e.g., 10G): "${NC})" data_size
-read -p "$(echo -e ${CYAN}"Size for HOME partition (e.g., 30G): "${NC})" home_size
-read -p "$(echo -e ${CYAN}"Size for SWAP partition (e.g., 8G): "${NC})" swap_size
+echo -e "${CYAN}│${NC} EFI partition: 512M (fixed)"
+echo -e "${CYAN}│${NC} ROOT partition: ${root_size_default} (25% of available space)"
+echo -e "${CYAN}│${NC} VAR partition: ${var_size_default} (15% of available space)"
+echo -e "${CYAN}│${NC} USR partition: ${usr_size_default} (20% of available space)"
+echo -e "${CYAN}│${NC} DATA partition: ${data_size_default} (10% of available space)"
+echo -e "${CYAN}│${NC} HOME partition: ${home_size_default} (30% of available space)"
+echo -e "${CYAN}│${NC} SWAP partition: ${swap_size_default} (rounded RAM size)"
 echo -e "${CYAN}└──────────────────────────────────────────────────────────┘${NC}"
+
+print_info "You can accept the suggested sizes or specify your own."
+
+# Function to validate size format
+validate_size() {
+	local size=$1
+	if echo "$size" | grep -qE '^[0-9]+[MG]$'; then
+		return 0
+	else
+		print_error "Invalid size format. Please use format like '20G' or '500M'"
+		return 1
+	fi
+}
+
+# Get user input for each partition size with defaults
+while true; do
+	read -p "$(echo -e ${CYAN}"Size for ROOT partition [${root_size_default}]: "${NC})" root_size
+	root_size=${root_size:-$root_size_default}
+	validate_size "$root_size" && break
+done
+
+while true; do
+	read -p "$(echo -e ${CYAN}"Size for VAR partition [${var_size_default}]: "${NC})" var_size
+	var_size=${var_size:-$var_size_default}
+	validate_size "$var_size" && break
+done
+
+while true; do
+	read -p "$(echo -e ${CYAN}"Size for USR partition [${usr_size_default}]: "${NC})" usr_size
+	usr_size=${usr_size:-$usr_size_default}
+	validate_size "$usr_size" && break
+done
+
+while true; do
+	read -p "$(echo -e ${CYAN}"Size for DATA partition [${data_size_default}]: "${NC})" data_size
+	data_size=${data_size:-$data_size_default}
+	validate_size "$data_size" && break
+done
+
+while true; do
+	read -p "$(echo -e ${CYAN}"Size for HOME partition [${home_size_default}]: "${NC})" home_size
+	home_size=${home_size:-$home_size_default}
+	validate_size "$home_size" && break
+done
+
+while true; do
+	read -p "$(echo -e ${CYAN}"Size for SWAP partition [${swap_size_default}]: "${NC})" swap_size
+	swap_size=${swap_size:-$swap_size_default}
+	validate_size "$swap_size" && break
+done
 
 print_info "Creating logical volumes with specified sizes..."
 lvcreate -L $root_size vg0 -n root
@@ -441,14 +536,69 @@ mkinitcpio -P
 
 # Timezone selection
 print_info "Setting timezone..."
-# List available regions
+# Get all regions and count them
+regions=(\$(ls -1 /usr/share/zoneinfo | grep -v posix | grep -v right))
+region_count=\${#regions[@]}
+columns=3  # Display in 3 columns
+
 echo "Available regions:"
-ls -1 /usr/share/zoneinfo | grep -v posix | grep -v right
+echo "┌────────────────────────────────────────────────────────────────┐"
+
+# Calculate items per column (rounded up)
+items_per_column=\$(((region_count + columns - 1) / columns))
+
+# Print regions in columns
+for (( i=0; i<items_per_column; i++ )); do
+    line="│"
+    for (( j=0; j<columns; j++ )); do
+        index=\$((j * items_per_column + i))
+        if [ \$index -lt \$region_count ]; then
+            # Pad each column to 25 characters
+            printf -v region_padded "%-25s" "\${regions[\$index]}"
+            line+=" \$region_padded"
+        else
+            # Empty padding for incomplete columns
+            line+=" \$(printf '%-25s' ' ')"
+        fi
+    done
+    line+=" │"
+    echo "\$line"
+done
+
+echo "└────────────────────────────────────────────────────────────────┘"
+
 read -p "Enter your region: " region
 
 if [ -d "/usr/share/zoneinfo/\$region" ]; then
+    # Display cities in columns too
+    cities=(\$(ls -1 /usr/share/zoneinfo/\$region))
+    city_count=\${#cities[@]}
+    
     echo "Cities in \$region:"
-    ls -1 /usr/share/zoneinfo/\$region
+    echo "┌────────────────────────────────────────────────────────────────┐"
+    
+    # Calculate items per column for cities (rounded up)
+    city_items_per_column=\$(((city_count + columns - 1) / columns))
+    
+    # Print cities in columns
+    for (( i=0; i<city_items_per_column; i++ )); do
+        line="│"
+        for (( j=0; j<columns; j++ )); do
+            index=\$((j * city_items_per_column + i))
+            if [ \$index -lt \$city_count ]; then
+                # Pad each column to 25 characters
+                printf -v city_padded "%-25s" "\${cities[\$index]}"
+                line+=" \$city_padded"
+            else
+                # Empty padding for incomplete columns
+                line+=" \$(printf '%-25s' ' ')"
+            fi
+        done
+        line+=" │"
+        echo "\$line"
+    done
+    
+    echo "└────────────────────────────────────────────────────────────────┘"
     read -p "Enter your city: " city
     
     if [ -f "/usr/share/zoneinfo/\$region/\$city" ]; then
