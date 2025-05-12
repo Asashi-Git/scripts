@@ -1,5 +1,5 @@
 # Installing Git
-sudo pacman -S git unzip eza
+sudo pacman -S git unzip eza ttf-dejavu noto-fonts noto-fonts-cjk noto-fonts-emoji ttf-liberation ttf-jetbrains-mono ttf-fira-code ttf-cascadia-code ttf-roboto ttf-ubuntu-font-family ttf-opensans
 sudo pacman -S zoxide --needed
 
 # Installing LazyVim
