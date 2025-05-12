@@ -289,6 +289,30 @@ apply_ssh_config() {
 }
 
 # ┌─────────────────────────────────────────────────────────────────┐
+# │ Function to ask if the user wants to install OTP                 │
+# └─────────────────────────────────────────────────────────────────┘
+ask_install_otp() {
+	print_section "OTP Installation Check"
+
+	echo -e "${CYAN}${BOLD}Two-Factor Authentication Enhances Security:${NC}"
+	echo -e "• Adds an extra layer of protection beyond passwords"
+	echo -e "• Requires both your SSH key and a time-based code"
+	echo -e "• Significantly reduces the risk of unauthorized access"
+	echo -e "• Recommended for all security-conscious users"
+	echo
+
+	if confirm "Do you want to install and configure OTP (One-Time Password) authentication?"; then
+		print_success "Proceeding with OTP installation..."
+		return 0
+	else
+		print_warning "OTP installation cancelled by user."
+		echo -e "${YELLOW}Your system will continue with standard SSH security.${NC}"
+		echo -e "${YELLOW}Consider enabling OTP in the future for enhanced security.${NC}"
+		exit 0
+	fi
+}
+
+# ┌─────────────────────────────────────────────────────────────────┐
 # │ Main function                                                    │
 # └─────────────────────────────────────────────────────────────────┘
 main() {
@@ -313,6 +337,7 @@ EOF
 	echo -e "${NC}"
 
 	check_sudo
+	ask_install_otp
 	check_and_set_timezone
 	install_google_authenticator
 	configure_google_authenticator
