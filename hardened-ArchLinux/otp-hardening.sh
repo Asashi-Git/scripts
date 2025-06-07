@@ -3,6 +3,7 @@
 # ╔═══════════════════════════════════════════════════════════════════╗
 # ║  OTP Authentication Hardening Script for Arch Linux               ║
 # ║  This script configures One-Time Password (OTP) for SSH access    ║
+# ║  Method 1: Interactive User Selection                              ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 
 # ┌─────────────────────────────────────────────────────────────────┐
@@ -23,358 +24,594 @@ NC='\033[0m' # No Color
 # └─────────────────────────────────────────────────────────────────┘
 # Function to print section headers
 print_section() {
-	echo -e "\n${BLUE}${BOLD}╔════════════ $1 ════════════╗${NC}\n"
+  echo -e "\n${BLUE}${BOLD}╔════════════ $1 ════════════╗${NC}\n"
 }
 
 # Function to print information
 print_info() {
-	echo -e "${GREEN}${BOLD}[INFO]${NC} $1"
+  echo -e "${GREEN}${BOLD}[INFO]${NC} $1"
 }
 
 # Function to print warnings
 print_warning() {
-	echo -e "${YELLOW}${BOLD}[WARNING]${NC} $1"
+  echo -e "${YELLOW}${BOLD}[WARNING]${NC} $1"
 }
 
 # Function to print errors
 print_error() {
-	echo -e "${RED}${BOLD}[ERROR]${NC} $1"
+  echo -e "${RED}${BOLD}[ERROR]${NC} $1"
 }
 
 # Function to print success messages
 print_success() {
-	echo -e "${GREEN}${BOLD}[SUCCESS]${NC} $1"
+  echo -e "${GREEN}${BOLD}[SUCCESS]${NC} $1"
 }
 
 # Function to get user confirmation
 confirm() {
-	local prompt="$1"
-	local response
+  local prompt="$1"
+  local response
 
-	while true; do
-		read -p "${CYAN}${prompt} [y/n]:${NC} " response
-		case $response in
-		[Yy]*) return 0 ;;
-		[Nn]*) return 1 ;;
-		*) echo -e "${YELLOW}Please enter y or n.${NC}" ;;
-		esac
-	done
+  while true; do
+    echo -e -n "${CYAN}${prompt} [y/n]:${NC} "
+    read response
+    case $response in
+    [Yy]*) return 0 ;;
+    [Nn]*) return 1 ;;
+    *) echo -e "${YELLOW}Please enter y or n.${NC}" ;;
+    esac
+  done
 }
 
 # Function to check if the script is run with sudo privileges
 check_sudo() {
-	if [[ $EUID -ne 0 ]]; then
-		print_error "This script must be run as root or with sudo privileges."
-		exit 1
-	fi
+  if [[ $EUID -ne 0 ]]; then
+    print_error "This script must be run as root or with sudo privileges."
+    exit 1
+  fi
 }
 
 # Function to backup a file before modifying it
 backup_file() {
-	local file=$1
-	local backup_file="${file}.bak.$(date +%Y%m%d%H%M%S)"
+  local file=$1
+  local backup_file="${file}.bak.$(date +%Y%m%d%H%M%S)"
 
-	print_info "Creating backup of $file to $backup_file"
-	cp "$file" "$backup_file"
+  print_info "Creating backup of $file to $backup_file"
+  cp "$file" "$backup_file"
 
-	if [[ $? -ne 0 ]]; then
-		print_error "Failed to create backup of $file. Exiting."
-		exit 1
-	else
-		print_success "Backup created successfully."
-	fi
+  if [[ $? -ne 0 ]]; then
+    print_error "Failed to create backup of $file. Exiting."
+    exit 1
+  else
+    print_success "Backup created successfully."
+  fi
 }
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Function to check and set timezone                               │
 # └─────────────────────────────────────────────────────────────────┘
 check_and_set_timezone() {
-	print_section "System Time Check"
+  print_section "Timezone Configuration"
 
-	print_info "Current date and time:"
-	echo -e "${CYAN}$(date)${NC}"
+  local current_tz=$(timedatectl show --property=Timezone --value)
+  print_info "Current timezone: ${BOLD}$current_tz${NC}"
 
-	if confirm "Is the date and time correct?"; then
-		print_success "Time verification completed."
-	else
-		echo
-		read -p "${CYAN}Enter your continent (default: Europe): ${NC}" continent
-		read -p "${CYAN}Enter your capital (default: Paris): ${NC}" capital
+  if confirm "Do you want to change the timezone?"; then
+    print_info "Listing available timezones..."
 
-		continent=${continent:-Europe}
-		capital=${capital:-Paris}
+    echo -e -n "${CYAN}Enter your continent (default: Europe): ${NC}"
+    read continent
+    continent=${continent:-Europe}
 
-		print_info "Setting timezone to $continent/$capital"
-		timedatectl set-timezone "$continent/$capital"
+    echo -e -n "${CYAN}Enter your capital (default: Paris): ${NC}"
+    read capital
+    capital=${capital:-Paris}
 
-		if [[ $? -ne 0 ]]; then
-			print_error "Failed to set timezone. Please check if the continent and capital are valid."
-			exit 1
-		fi
+    local new_timezone="${continent}/${capital}"
 
-		print_success "Timezone updated successfully."
-		print_info "Updated date and time:"
-		echo -e "${CYAN}$(date)${NC}"
-	fi
+    if timedatectl list-timezones | grep -q "^${new_timezone}$"; then
+      print_info "Setting timezone to $new_timezone"
+      timedatectl set-timezone "$new_timezone"
+      print_success "Timezone updated successfully"
+    else
+      print_error "Invalid timezone: $new_timezone"
+      print_info "Keeping current timezone: $current_tz"
+    fi
+  else
+    print_info "Keeping current timezone: $current_tz"
+  fi
+
+  # Ensure system time is synchronized
+  print_info "Synchronizing system time..."
+  timedatectl set-ntp true
+  systemctl enable systemd-timesyncd
+  systemctl start systemd-timesyncd
+  print_success "Time synchronization enabled and started"
 }
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ Function to install google-authenticator                         │
+# │ Function to install Google Authenticator                         │
 # └─────────────────────────────────────────────────────────────────┘
 install_google_authenticator() {
-	print_section "Google Authenticator Installation"
+  print_section "Google Authenticator Installation"
 
-	if ! pacman -Q libpam-google-authenticator &>/dev/null && ! pacman -Q google-authenticator &>/dev/null; then
-		print_info "Google Authenticator is not installed. Installing..."
-		pacman -S --noconfirm libpam-google-authenticator || pacman -S --noconfirm google-authenticator
+  if command -v google-authenticator &>/dev/null; then
+    print_info "Google Authenticator is already installed."
+    return 0
+  fi
 
-		if [[ $? -ne 0 ]]; then
-			print_error "Failed to install Google Authenticator. Exiting."
-			exit 1
-		else
-			print_success "Google Authenticator installed successfully."
-		fi
-	else
-		print_success "Google Authenticator is already installed."
-	fi
+  print_info "Installing Google Authenticator..."
+
+  if command -v pacman &>/dev/null; then
+    # Arch Linux
+    pacman -Sy --noconfirm libpam-google-authenticator
+  elif command -v apt &>/dev/null; then
+    # Debian/Ubuntu
+    apt update && apt install -y libpam-google-authenticator
+  elif command -v yum &>/dev/null; then
+    # RHEL/CentOS
+    yum install -y google-authenticator
+  else
+    print_error "Unsupported package manager. Please install Google Authenticator manually."
+    exit 1
+  fi
+
+  if command -v google-authenticator &>/dev/null; then
+    print_success "Google Authenticator installed successfully."
+  else
+    print_error "Failed to install Google Authenticator."
+    exit 1
+  fi
 }
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ Function to configure Google Authenticator                       │
+# │ User Management Functions                                        │
 # └─────────────────────────────────────────────────────────────────┘
-configure_google_authenticator() {
-	print_section "Google Authenticator Configuration"
 
-	print_info "Configuring Google Authenticator..."
-	echo -e "${YELLOW}${BOLD}Please follow the instructions to set up your OTP.${NC}"
-	echo -e "${YELLOW}${BOLD}It is recommended to answer 'y' to all questions for secure setup.${NC}"
-	echo -e "${BLUE}${BOLD}┌────────────────────────────────────────────────────────────┐${NC}"
-	echo -e "${BLUE}${BOLD}│ Recommended settings:                                      │${NC}"
-	echo -e "${BLUE}${BOLD}│ • Time-based tokens                     -> y               │${NC}"
-	echo -e "${BLUE}${BOLD}│ • Update .google_authenticator file     -> y               │${NC}"
-	echo -e "${BLUE}${BOLD}│ • Disallow token reuse                  -> y               │${NC}"
-	echo -e "${BLUE}${BOLD}│ • Allow 30s time skew                   -> y               │${NC}"
-	echo -e "${BLUE}${BOLD}│ • Rate limit authentication attempts    -> y               │${NC}"
-	echo -e "${BLUE}${BOLD}└────────────────────────────────────────────────────────────┘${NC}"
-	echo
+# Function to get all regular users (non-system users)
+get_regular_users() {
+  # Get users with UID >= 1000 and < 65534 (regular users)
+  getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 {print $1}' | sort
+}
 
-	# Run Google Authenticator setup for the current user
-	sudo -u $SUDO_USER google-authenticator
+# Function to display user selection menu
+display_user_menu() {
+  local users=($(get_regular_users))
 
-	if [[ $? -ne 0 ]]; then
-		print_error "Failed to configure Google Authenticator. Exiting."
-		exit 1
-	fi
+  if [[ ${#users[@]} -eq 0 ]]; then
+    print_error "No regular users found on the system"
+    return 1
+  fi
 
-	print_success "Google Authenticator configuration completed."
+  print_section "Available Users for 2FA Configuration"
+
+  echo -e "${CYAN}${BOLD}Select users to configure 2FA:${NC}"
+  echo
+
+  for i in "${!users[@]}"; do
+    local user="${users[i]}"
+    local home_dir=$(getent passwd "$user" | cut -d: -f6)
+    local has_2fa=""
+
+    # Check if user already has 2FA configured
+    if [[ -f "$home_dir/.google_authenticator" ]]; then
+      has_2fa="${GREEN}[2FA CONFIGURED]${NC}"
+    else
+      has_2fa="${RED}[NO 2FA]${NC}"
+    fi
+
+    echo -e "  ${YELLOW}$((i + 1)))${NC} ${BOLD}$user${NC} $has_2fa"
+  done
+
+  echo -e "  ${YELLOW}0)${NC} ${BOLD}Configure for ALL users${NC}"
+  echo -e "  ${YELLOW}q)${NC} ${BOLD}Skip 2FA configuration${NC}"
+  echo
+}
+
+# Function to setup OTP for a specific user
+setup_user_otp() {
+  local target_user="$1"
+
+  print_info "Configuring 2FA for user: ${BOLD}$target_user${NC}"
+
+  # Verify user exists
+  if ! id "$target_user" &>/dev/null; then
+    print_error "User $target_user does not exist"
+    return 1
+  fi
+
+  # Get user's home directory
+  local user_home=$(getent passwd "$target_user" | cut -d: -f6)
+
+  if [[ ! -d "$user_home" ]]; then
+    print_error "Home directory for user $target_user not found"
+    return 1
+  fi
+
+  # Check if 2FA is already configured
+  if [[ -f "$user_home/.google_authenticator" ]]; then
+    print_warning "2FA already configured for user: $target_user"
+    if confirm "Do you want to reconfigure 2FA for $target_user?"; then
+      sudo -u "$target_user" rm -f "$user_home/.google_authenticator"
+    else
+      print_info "Skipping user: $target_user"
+      return 0
+    fi
+  fi
+
+  echo
+  print_info "Launching Google Authenticator setup for user: ${BOLD}$target_user${NC}"
+  print_warning "The user will need to scan the QR code with their authenticator app"
+  echo -e "${MAGENTA}${BOLD}┌─────────────────────────────────────────────────────────────┐${NC}"
+  echo -e "${MAGENTA}${BOLD}│ IMPORTANT: Save the emergency scratch codes in a safe place │${NC}"
+  echo -e "${MAGENTA}${BOLD}└─────────────────────────────────────────────────────────────┘${NC}"
+  echo
+
+  # Run google-authenticator as the target user
+  if sudo -u "$target_user" bash -c "
+        cd '$user_home'
+        echo -e '${GREEN}${BOLD}Setting up 2FA for: $target_user${NC}'
+        echo -e '${YELLOW}Please scan the QR code with Google Authenticator or similar app${NC}'
+        echo
+        google-authenticator -t -d -f -r 3 -R 30 -W
+    "; then
+    print_success "2FA configured successfully for user: $target_user"
+    echo
+    return 0
+  else
+    print_error "Failed to configure 2FA for user: $target_user"
+    return 1
+  fi
+}
+
+# Function to handle user selection and configuration
+configure_user_otp_interactive() {
+  print_section "Two-Factor Authentication Setup"
+
+  # Check if google-authenticator is installed
+  if ! command -v google-authenticator &>/dev/null; then
+    print_error "Google Authenticator is not installed"
+    return 1
+  fi
+
+  local users=($(get_regular_users))
+  local configured_users=()
+
+  while true; do
+    display_user_menu
+
+    echo -e -n "${CYAN}Enter your selection: ${NC}"
+    read selection
+
+    case $selection in
+    0) # Configure for all users
+      print_info "Configuring 2FA for all users..."
+      local success_count=0
+      local total_count=${#users[@]}
+
+      for user in "${users[@]}"; do
+        echo
+        echo -e "${BLUE}${BOLD}┌─ Configuring user $((success_count + 1))/$total_count: $user ─┐${NC}"
+        if setup_user_otp "$user"; then
+          ((success_count++))
+          configured_users+=("$user")
+        fi
+        echo -e "${BLUE}${BOLD}└─────────────────────────────────────────────────────────────┘${NC}"
+
+        # Pause between users for readability
+        if [[ $success_count -lt $total_count ]]; then
+          echo -e "${YELLOW}Press Enter to continue to next user...${NC}"
+          read
+        fi
+      done
+
+      print_success "2FA configuration completed for $success_count/$total_count users"
+      break
+      ;;
+    [1-9]*) # Specific user selection
+      if [[ "$selection" =~ ^[0-9]+$ ]] && [[ "$selection" -ge 1 ]] && [[ "$selection" -le ${#users[@]} ]]; then
+        local selected_user="${users[$((selection - 1))]}"
+        if setup_user_otp "$selected_user"; then
+          configured_users+=("$selected_user")
+        fi
+
+        if confirm "Configure 2FA for another user?"; then
+          continue
+        else
+          break
+        fi
+      else
+        print_error "Invalid selection. Please choose a number between 1 and ${#users[@]}"
+      fi
+      ;;
+    q | Q) # Skip
+      print_warning "Skipping 2FA configuration"
+      break
+      ;;
+    *) # Invalid input
+      print_error "Invalid selection. Please try again."
+      ;;
+    esac
+  done
+
+  # Summary of configured users
+  if [[ ${#configured_users[@]} -gt 0 ]]; then
+    echo
+    print_section "2FA Configuration Summary"
+    print_success "2FA configured for the following users:"
+    for user in "${configured_users[@]}"; do
+      echo -e "  ${GREEN}✓${NC} $user"
+    done
+  fi
 }
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ Function to modify PAM configuration for SSH                     │
+# │ Function to configure PAM for SSH                                │
 # └─────────────────────────────────────────────────────────────────┘
 configure_pam_sshd() {
-	print_section "PAM Configuration for SSH"
-	local pam_file="/etc/pam.d/sshd"
+  print_section "PAM SSH Configuration"
 
-	print_info "Configuring PAM for SSH..."
-	backup_file "$pam_file"
+  local pam_sshd_file="/etc/pam.d/sshd"
 
-	# Check if the line is already there
-	if ! grep -q "auth required pam_google_authenticator.so" "$pam_file"; then
-		# Find the line with #%PAM-1.0 and add our line after it
-		sed -i '/#%PAM-1.0/a auth required pam_google_authenticator.so' "$pam_file"
+  if [[ ! -f "$pam_sshd_file" ]]; then
+    print_error "PAM SSH configuration file not found: $pam_sshd_file"
+    return 1
+  fi
 
-		if [[ $? -ne 0 ]]; then
-			print_error "Failed to modify $pam_file. Exiting."
-			exit 1
-		fi
+  backup_file "$pam_sshd_file"
 
-		print_success "Added Google Authenticator to PAM configuration."
-	else
-		print_success "Google Authenticator is already configured in PAM."
-	fi
+  # Check if Google Authenticator PAM module is already configured at the beginning
+  if head -n 5 "$pam_sshd_file" | grep -q "auth required pam_google_authenticator.so"; then
+    print_info "Google Authenticator PAM module already configured at the beginning of the file."
+  else
+    print_info "Adding Google Authenticator PAM module at the beginning of SSH PAM configuration..."
+
+    # Create temporary file with the new line at the beginning
+    {
+      echo "auth required pam_google_authenticator.so"
+      cat "$pam_sshd_file"
+    } >"${pam_sshd_file}.tmp"
+
+    # Replace the original file
+    mv "${pam_sshd_file}.tmp" "$pam_sshd_file"
+
+    print_success "Google Authenticator PAM module added at the beginning of SSH configuration."
+  fi
+
+  # Ensure the PAM module line is present at the correct position
+  if head -n 5 "$pam_sshd_file" | grep -q "auth required pam_google_authenticator.so"; then
+    print_success "PAM SSH configuration complete - Google Authenticator module at beginning of file."
+  else
+    print_error "Failed to configure PAM SSH. Manual intervention may be required."
+    return 1
+  fi
 }
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ Function to modify SSH daemon configuration                      │
+# │ Function to comment Arch Linux SSH config                       │
+# └─────────────────────────────────────────────────────────────────┘
+comment_archlinux_ssh_config() {
+  print_section "Arch Linux SSH Config Modification"
+
+  local arch_ssh_config="/etc/ssh/sshd_config.d/99-archlinux.conf"
+
+  if [[ ! -f "$arch_ssh_config" ]]; then
+    print_warning "Arch Linux SSH config file not found: $arch_ssh_config"
+    print_info "This is normal if not using Arch Linux or if file doesn't exist."
+    return 0
+  fi
+
+  backup_file "$arch_ssh_config"
+
+  print_info "Commenting out all configurations in $arch_ssh_config..."
+
+  # Comment out all non-empty lines that aren't already commented
+  sed -i 's/^[^#].*/#&/' "$arch_ssh_config"
+
+  if [[ $? -eq 0 ]]; then
+    print_success "All configurations in $arch_ssh_config have been commented out."
+    print_info "Contents of the modified file:"
+    echo -e "${CYAN}---${NC}"
+    cat "$arch_ssh_config"
+    echo -e "${CYAN}---${NC}"
+  else
+    print_error "Failed to comment out configurations in $arch_ssh_config"
+    return 1
+  fi
+}
+
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ Function to configure SSH daemon                                 │
 # └─────────────────────────────────────────────────────────────────┘
 configure_sshd() {
-	print_section "SSH Daemon Configuration"
-	local sshd_config="/etc/ssh/sshd_config"
-	local archlinux_conf="/etc/ssh/sshd_config.d/99-archlinux.conf"
+  print_section "SSH Daemon Configuration"
 
-	print_info "Configuring SSH daemon..."
-	backup_file "$sshd_config"
+  local sshd_config="/etc/ssh/sshd_config"
 
-	# Array of settings to check and set
-	declare -A settings=(
-		["PasswordAuthentication"]="no"
-		["KbdInteractiveAuthentication"]="yes"
-		["UsePAM"]="yes"
-		["ChallengeResponseAuthentication"]="yes"
-		["AuthenticationMethods"]="publickey,keyboard-interactive"
-		["LoginGraceTime"]="20"
-		["MaxAuthTries"]="3"
-		["MaxSessions"]="5"
-		["PermitEmptyPasswords"]="no"
-		["ClientAliveInterval"]="60"
-		["ClientAliveCountMax"]="3"
-		["X11Forwarding"]="no"
-		["AllowAgentForwarding"]="no"
-		["AllowTcpForwarding"]="no"
-	)
+  if [[ ! -f "$sshd_config" ]]; then
+    print_error "SSH configuration file not found: $sshd_config"
+    return 1
+  fi
 
-	# Check and set each configuration
-	for key in "${!settings[@]}"; do
-		value="${settings[$key]}"
+  backup_file "$sshd_config"
 
-		# Check if the setting exists
-		if grep -q "^#*[[:space:]]*${key}[[:space:]]" "$sshd_config"; then
-			# Setting exists, update it
-			sed -i "s/^#*[[:space:]]*${key}[[:space:]].*/${key} ${value}/" "$sshd_config"
-			print_info "Updated: ${key} ${value}"
-		else
-			# Setting doesn't exist, add it
-			echo "${key} ${value}" >>"$sshd_config"
-			print_info "Added: ${key} ${value}"
-		fi
-	done
+  print_info "Configuring SSH daemon for 2FA..."
 
-	print_success "SSH daemon configuration updated."
+  # Configure KbdInteractiveAuthentication
+  if grep -q "^KbdInteractiveAuthentication" "$sshd_config"; then
+    sed -i 's/^KbdInteractiveAuthentication.*/KbdInteractiveAuthentication yes/' "$sshd_config"
+    print_info "Updated existing KbdInteractiveAuthentication setting"
+  else
+    echo "KbdInteractiveAuthentication yes" >>"$sshd_config"
+    print_info "Added KbdInteractiveAuthentication yes"
+  fi
 
-	# Comment out all lines in 99-archlinux.conf if it exists
-	if [[ -f "$archlinux_conf" ]]; then
-		backup_file "$archlinux_conf"
+  # Configure ChallengeResponseAuthentication
+  if grep -q "^ChallengeResponseAuthentication" "$sshd_config"; then
+    sed -i 's/^ChallengeResponseAuthentication.*/ChallengeResponseAuthentication yes/' "$sshd_config"
+    print_info "Updated existing ChallengeResponseAuthentication setting"
+  else
+    echo "ChallengeResponseAuthentication yes" >>"$sshd_config"
+    print_info "Added ChallengeResponseAuthentication yes"
+  fi
 
-		print_info "Commenting out all lines in $archlinux_conf"
-		sed -i 's/^/#/' "$archlinux_conf"
+  # Configure AuthenticationMethods (require both publickey and keyboard-interactive)
+  if grep -q "^AuthenticationMethods" "$sshd_config"; then
+    sed -i 's/^AuthenticationMethods.*/AuthenticationMethods publickey,keyboard-interactive/' "$sshd_config"
+    print_info "Updated existing AuthenticationMethods setting"
+  else
+    echo "AuthenticationMethods publickey,keyboard-interactive" >>"$sshd_config"
+    print_info "Added AuthenticationMethods publickey,keyboard-interactive"
+  fi
 
-		if [[ $? -ne 0 ]]; then
-			print_error "Failed to modify $archlinux_conf. Exiting."
-			exit 1
-		else
-			print_success "Commented out all lines in $archlinux_conf."
-		fi
-	else
-		print_info "$archlinux_conf does not exist. Skipping."
-	fi
+  # Additional security hardening
+  print_info "Applying additional SSH security hardening..."
+
+  # Disable password authentication
+  if grep -q "^PasswordAuthentication" "$sshd_config"; then
+    sed -i 's/^PasswordAuthentication.*/PasswordAuthentication no/' "$sshd_config"
+    print_info "Updated PasswordAuthentication to no"
+  else
+    echo "PasswordAuthentication no" >>"$sshd_config"
+    print_info "Added PasswordAuthentication no"
+  fi
+
+  # Disable root login
+  if grep -q "^PermitRootLogin" "$sshd_config"; then
+    sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' "$sshd_config"
+    print_info "Updated PermitRootLogin to no"
+  else
+    echo "PermitRootLogin no" >>"$sshd_config"
+    print_info "Added PermitRootLogin no"
+  fi
+
+  # Enable public key authentication
+  if grep -q "^PubkeyAuthentication" "$sshd_config"; then
+    sed -i 's/^PubkeyAuthentication.*/PubkeyAuthentication yes/' "$sshd_config"
+    print_info "Updated PubkeyAuthentication to yes"
+  else
+    echo "PubkeyAuthentication yes" >>"$sshd_config"
+    print_info "Added PubkeyAuthentication yes"
+  fi
+
+  # Configure UsePAM
+  if grep -q "^UsePAM" "$sshd_config"; then
+    sed -i 's/^UsePAM.*/UsePAM yes/' "$sshd_config"
+    print_info "Updated UsePAM to yes"
+  else
+    echo "UsePAM yes" >>"$sshd_config"
+    print_info "Added UsePAM yes"
+  fi
+
+  print_success "SSH daemon configuration complete."
 }
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ Function to apply SSH configuration changes                      │
+# │ Function to apply SSH configuration                              │
 # └─────────────────────────────────────────────────────────────────┘
 apply_ssh_config() {
-	print_section "Applying SSH Configuration"
+  print_section "Applying SSH Configuration"
 
-	print_info "Testing SSH configuration..."
-	sshd -t
+  print_info "Testing SSH configuration..."
 
-	if [[ $? -ne 0 ]]; then
-		print_error "SSH configuration test failed. Please check your configuration."
-		exit 1
-	else
-		print_success "SSH configuration test passed."
-	fi
+  # Test the SSH configuration
+  if sshd -t; then
+    print_success "SSH configuration test passed."
+  else
+    print_error "SSH configuration test failed. Please check your configuration."
+    return 1
+  fi
 
-	print_info "Restarting SSH daemon..."
-	systemctl restart sshd
+  print_info "Restarting SSH service..."
 
-	if [[ $? -ne 0 ]]; then
-		print_error "Failed to restart SSH daemon. Exiting."
-		exit 1
-	fi
+  # Restart SSH service
+  if systemctl restart sshd; then
+    print_success "SSH service restarted successfully."
+  else
+    print_error "Failed to restart SSH service."
+    return 1
+  fi
 
-	print_success "SSH daemon restarted successfully."
-	print_success "OTP configuration has been applied."
-}
-
-# ┌─────────────────────────────────────────────────────────────────┐
-# │ Function to ask if the user wants to install OTP                 │
-# └─────────────────────────────────────────────────────────────────┘
-ask_install_otp() {
-	print_section "OTP Installation Check"
-
-	echo -e "${CYAN}${BOLD}Two-Factor Authentication Enhances Security:${NC}"
-	echo -e "• Adds an extra layer of protection beyond passwords"
-	echo -e "• Requires both your SSH key and a time-based code"
-	echo -e "• Significantly reduces the risk of unauthorized access"
-	echo -e "• Recommended for all security-conscious users"
-	echo
-
-	if confirm "Do you want to install and configure OTP (One-Time Password) authentication?"; then
-		print_success "Proceeding with OTP installation..."
-		return 0
-	else
-		print_warning "OTP installation cancelled by user."
-		echo -e "${YELLOW}Your system will continue with standard SSH security.${NC}"
-		echo -e "${YELLOW}Consider enabling OTP in the future for enhanced security.${NC}"
-		exit 0
-	fi
+  # Enable SSH service if not already enabled
+  if systemctl is-enabled sshd &>/dev/null; then
+    print_info "SSH service is already enabled."
+  else
+    print_info "Enabling SSH service..."
+    systemctl enable sshd
+    print_success "SSH service enabled."
+  fi
 }
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Main function                                                    │
 # └─────────────────────────────────────────────────────────────────┘
 main() {
-	clear
-	echo
-	echo -e "${BRIGHT_BLUE}${BOLD}"
-	cat <<"EOF"
+  # Display banner
+  echo -e "${BRIGHT_BLUE}${BOLD}"
+  cat <<"EOF"
    ██████╗ ████████╗██████╗     ██╗  ██╗ █████╗ ██████╗ ██████╗ ███████╗███╗   ██╗██╗███╗   ██╗ ██████╗ 
   ██╔═══██╗╚══██╔══╝██╔══██╗    ██║  ██║██╔══██╗██╔══██╗██╔══██╗██╔════╝████╗  ██║██║████╗  ██║██╔════╝ 
   ██║   ██║   ██║   ██████╔╝    ███████║███████║██████╔╝██║  ██║█████╗  ██╔██╗ ██║██║██╔██╗ ██║██║  ███╗
   ██║   ██║   ██║   ██╔═══╝     ██╔══██║██╔══██║██╔══██╗██║  ██║██╔══╝  ██║╚██╗██║██║██║╚██╗██║██║   ██║
   ╚██████╔╝   ██║   ██║         ██║  ██║██║  ██║██║  ██║██████╔╝███████╗██║ ╚████║██║██║ ╚████║╚██████╔╝
    ╚═════╝    ╚═╝   ╚═╝         ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═══╝ ╚═════╝ 
-                                                                                                        
-  ██████╗ ██╗   ██╗    ██╗      █████╗ ██╗   ██╗███████╗██████╗                                         
-  ██╔══██╗╚██╗ ██╔╝    ██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗                                        
-  ██████╔╝ ╚████╔╝     ██║     ███████║ ╚████╔╝ █████╗  ██████╔╝                                        
-  ██╔══██╗  ╚██╔╝      ██║     ██╔══██║  ╚██╔╝  ██╔══╝  ██╔══██╗                                        
-  ██████╔╝   ██║       ███████╗██║  ██║   ██║   ███████╗██║  ██║                                        
-  ╚═════╝    ╚═╝       ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝                                        
+                                                                                                          
+                     █████╗ ██████╗  ██████╗██╗  ██╗    ██╗     ██╗███╗   ██╗██╗   ██╗██╗  ██╗         
+                    ██╔══██╗██╔══██╗██╔════╝██║  ██║    ██║     ██║████╗  ██║██║   ██║╚██╗██╔╝         
+                    ███████║██████╔╝██║     ███████║    ██║     ██║██╔██╗ ██║██║   ██║ ╚███╔╝          
+                    ██╔══██║██╔══██╗██║     ██╔══██║    ██║     ██║██║╚██╗██║██║   ██║ ██╔██╗          
+                    ██║  ██║██║  ██║╚██████╗██║  ██║    ███████╗██║██║ ╚████║╚██████╔╝██╔╝ ██╗         
+                    ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝    ╚══════╝╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝         
 EOF
-	echo -e "${NC}"
+  echo -e "${NC}"
 
-	check_sudo
-	ask_install_otp
-	check_and_set_timezone
-	install_google_authenticator
-	configure_google_authenticator
-	configure_pam_sshd
-	configure_sshd
-	apply_ssh_config
+  check_sudo
+  check_and_set_timezone
+  install_google_authenticator
+  configure_user_otp_interactive
+  configure_pam_sshd
+  comment_archlinux_ssh_config
+  configure_sshd
+  apply_ssh_config
 
-	print_section "Summary"
+  print_section "Configuration Summary"
 
-	echo -e "${GREEN}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
-	echo -e "${GREEN}${BOLD}│ OTP Configuration Completed                                   │${NC}"
-	echo -e "${GREEN}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
+  echo -e "${GREEN}${BOLD}┌─────────────────────────────────────────────────────────────────┐${NC}"
+  echo -e "${GREEN}${BOLD}│ OTP Configuration Completed Successfully                        │${NC}"
+  echo -e "${GREEN}${BOLD}└─────────────────────────────────────────────────────────────────┘${NC}"
 
-	echo -e "  ${GREEN}✓${NC} Google Authenticator installed and configured"
-	echo -e "  ${GREEN}✓${NC} PAM configured for SSH authentication"
-	echo -e "  ${GREEN}✓${NC} SSH hardened with secure configuration"
-	echo -e "  ${GREEN}✓${NC} Time-based One-Time Password (TOTP) enabled"
-	echo
-	echo -e "${YELLOW}${BOLD}┌───────────────────────────────────────────────────────────────┐${NC}"
-	echo -e "${YELLOW}${BOLD}│ Important Security Notes                                      │${NC}"
-	echo -e "${YELLOW}${BOLD}└───────────────────────────────────────────────────────────────┘${NC}"
-	echo -e "  ${YELLOW}!${NC} Make sure to keep your recovery codes in a secure location"
-	echo -e "  ${YELLOW}!${NC} You can now log in using your SSH key and OTP token"
-	echo -e "  ${YELLOW}!${NC} Do not disconnect from your current session until you verify"
-	echo -e "     that you can successfully authenticate with the new method"
+  echo -e "  ${GREEN}✓${NC} Google Authenticator installed and configured for selected users"
+  echo -e "  ${GREEN}✓${NC} PAM configured for SSH authentication (module at beginning of file)"
+  echo -e "  ${GREEN}✓${NC} Arch Linux SSH config commented out (if present)"
+  echo -e "  ${GREEN}✓${NC} SSH hardened with secure configuration"
+  echo -e "  ${GREEN}✓${NC} KbdInteractiveAuthentication and ChallengeResponseAuthentication enabled"
+  echo -e "  ${GREEN}✓${NC} Time-based One-Time Password (TOTP) enabled"
+  echo
+  echo -e "${YELLOW}${BOLD}┌─────────────────────────────────────────────────────────────────┐${NC}"
+  echo -e "${YELLOW}${BOLD}│ Important Security Notes                                        │${NC}"
+  echo -e "${YELLOW}${BOLD}└─────────────────────────────────────────────────────────────────┘${NC}"
+  echo -e "  ${YELLOW}!${NC} Keep your recovery codes in a secure location"
+  echo -e "  ${YELLOW}!${NC} Users can now log in using SSH key + OTP token"
+  echo -e "  ${YELLOW}!${NC} Root login is disabled - use configured user accounts"
+  echo -e "  ${YELLOW}!${NC} Test authentication before closing this session"
+  echo -e "  ${YELLOW}!${NC} Each user must have their SSH public key installed"
+  echo -e "  ${YELLOW}!${NC} Arch Linux default SSH config overridden"
 
-	echo
-	echo -e "${BRIGHT_BLUE}${BOLD}"
-	cat <<"EOF"
-  ███████╗███████╗ ██████╗██╗   ██╗██████╗ ██╗████████╗██╗   ██╗    ███████╗███╗   ██╗██╗  ██╗ █████╗ ███╗   ██╗ ██████╗███████╗██████╗ 
-  ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██║╚══██╔══╝╚██╗ ██╔╝    ██╔════╝████╗  ██║██║  ██║██╔══██╗████╗  ██║██╔════╝██╔════╝██╔══██╗
+  echo
+  echo -e "${MAGENTA}${BOLD}Testing Command:${NC}"
+  echo -e "  ${CYAN}ssh -i ~/.ssh/your_key username@your_server${NC}"
+  echo
+
+  echo -e "${BRIGHT_BLUE}${BOLD}"
+  cat <<"EOF"
+  ███████╗███████╗ ██████╗██╗   ██╗██████╗ ██╗████████╗██╗   ██╗    ███████╗███╗   ██╗██╗  ██╗ █████╗ ███╗   ██╗ ██████╗███████╗██████╔══██╗
+  ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██║╚══██╔══╝╚██╗ ██╔╝    ██╔════╝████╗  ██║██║  ██║██╔══██╗████╗  ██║██╔════╝██╔════╝██╔══██║  ██║
   ███████╗█████╗  ██║     ██║   ██║██████╔╝██║   ██║    ╚████╔╝     █████╗  ██╔██╗ ██║███████║███████║██╔██╗ ██║██║     █████╗  ██║  ██║
   ╚════██║██╔══╝  ██║     ██║   ██║██╔══██╗██║   ██║     ╚██╔╝      ██╔══╝  ██║╚██╗██║██╔══██║██╔══██║██║╚██╗██║██║     ██╔══╝  ██║  ██║
   ███████║███████╗╚██████╗╚██████╔╝██║  ██║██║   ██║      ██║       ███████╗██║ ╚████║██║  ██║██║  ██║██║ ╚████║╚██████╗███████╗██████╔╝
   ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝   ╚═╝      ╚═╝       ╚══════╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝╚═════╝ 
 EOF
-	echo -e "${NC}"
+  echo -e "${NC}"
 }
 
 # Execute main function
