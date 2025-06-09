@@ -394,8 +394,6 @@ else
 	lvcreate -L $home_size vg0 -n home
 fi
 
-lvcreate -L $swap_size vg0 -n swap
-
 check_success "Logical volumes created successfully." "Failed to create logical volumes."
 
 # ┌─────────────────────────────────────────────────────────────────┐
