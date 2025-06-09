@@ -243,147 +243,167 @@ vgcreate vg0 /dev/mapper/cryptlvm
 check_success "Volume group created successfully." "Failed to create volume group."
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ Get partition sizes from user - ONLY HOME LOGIC CHANGED         │
+# │ Get partition sizes from user                                    │
 # └─────────────────────────────────────────────────────────────────┘
-print_section "Setting up Partitions"
-
-# Get RAM size in MB
-ram_size_mb=$(free -m | awk '/^Mem:/{print $2}')
-print_info "Detected system memory: ${ram_size_mb}MB"
-
-# Round up RAM size for swap partition
-if [ "$ram_size_mb" -le 2048 ]; then
-	rounded_ram="2G"
-	rounded_ram_mb=2048
-elif [ "$ram_size_mb" -le 4096 ]; then
-	rounded_ram="4G"
-	rounded_ram_mb=4096
-elif [ "$ram_size_mb" -le 8192 ]; then
-	rounded_ram="8G"
-	rounded_ram_mb=8192
-elif [ "$ram_size_mb" -le 16384 ]; then
-	rounded_ram="16G"
-	rounded_ram_mb=16384
-elif [ "$ram_size_mb" -le 32768 ]; then
-	rounded_ram="32G"
-	rounded_ram_mb=32768
-else
-	rounded_ram="64G"
-	rounded_ram_mb=65536
-fi
-print_info "Rounded RAM size for swap partition: ${rounded_ram}"
-
-# Get total disk size in MB
-disk_size_mb=$(lsblk -b $disk_path -o SIZE | sed -n '2p' | awk '{print int($1/1024/1024)}')
-print_info "Detected disk size: ${disk_size_mb}MB"
-
-# Calculate available space AFTER subtracting EFI partition (512MB) AND swap partition (rounded RAM)
-available_space_mb=$((disk_size_mb - 512))
-print_info "Available space for LVM partitions: ${available_space_mb}MB"
-
-# Calculate default sizes based on percentages (25% root, 15% var, 20% usr, 10% data, 30% home)
-root_size_default="$((available_space_mb * 25 / 100))M"
-var_size_default="$((available_space_mb * 15 / 100))M"
-usr_size_default="$((available_space_mb * 20 / 100))M"
-data_size_default="$((available_space_mb * 10 / 100))M"
-home_size_default="remaining space" # CHANGED: Display text instead of calculation
-swap_size_default="${rounded_ram}"  # Using rounded RAM value
-
-print_info "Suggested partition sizes based on disk space and RAM:"
-echo -e "${CYAN}┌──────────────────────────────────────────────────────────┐${NC}"
-echo -e "${CYAN}│${NC} EFI partition: 512M (fixed)"
-echo -e "${CYAN}│${NC} ROOT partition: ${root_size_default} (25% of available space)"
-echo -e "${CYAN}│${NC} VAR partition: ${var_size_default} (15% of available space)"
-echo -e "${CYAN}│${NC} USR partition: ${usr_size_default} (20% of available space)"
-echo -e "${CYAN}│${NC} DATA partition: ${data_size_default} (10% of available space)"
-echo -e "${CYAN}│${NC} HOME partition: ${home_size_default} (all remaining space)"
-echo -e "${CYAN}│${NC} SWAP partition: ${swap_size_default} (rounded RAM size)"
-echo -e "${CYAN}└──────────────────────────────────────────────────────────┘${NC}"
-
-print_info "You can accept the suggested sizes or specify your own."
-print_info "HOME partition will automatically use all remaining space unless you specify a custom size."
-
-# Function to validate size format
-validate_size() {
-	local size=$1
-	if echo "$size" | grep -qE '^[0-9]+[MG]$'; then
-		return 0
-	else
-		print_error "Invalid size format. Please use format like '20G' or '500M'"
-		return 1
-	fi
+get_partition_sizes() {
+    print_section "Setting up Partitions"
+    
+    # Get total disk size in MB
+    disk_size_mb=$(lsblk -b $disk_path -o SIZE | sed -n '2p' | awk '{print int($1/1024/1024)}')
+    print_info "Detected disk size: ${disk_size_mb}MB"
+    
+    # Calculate available space for LVM (don't subtract swap from physical space)
+    available_space_mb=$((disk_size_mb - 512))
+    print_info "Available space for LVM partitions: ${available_space_mb}MB"
+    
+    # Calculate EFFECTIVE space for percentage partitions (subtract swap for calculations)
+    effective_space_for_percentages=$((available_space_mb - rounded_ram_mb))
+    print_info "Effective space for percentage-based partitions: ${effective_space_for_percentages}MB"
+    
+    # Calculate suggested sizes based on percentages of EFFECTIVE space
+    root_size_default="$((effective_space_for_percentages * 25 / 100))M"
+    var_size_default="$((effective_space_for_percentages * 15 / 100))M"
+    usr_size_default="$((effective_space_for_percentages * 20 / 100))M"
+    data_size_default="$((effective_space_for_percentages * 10 / 100))M"
+    home_size_default="remaining space"
+    swap_size_default="${rounded_ram}"
+    
+    print_info "Suggested partition sizes based on disk space and RAM:"
+    cat <<EOF
+┌─────────────────────────────────────────────────────────────────┐
+│  EFI partition: 512M (fixed)                                    │
+│  ROOT partition: $root_size_default (25% of available space)    │
+│  VAR partition: $var_size_default (15% of available space)      │
+│  USR partition: $usr_size_default (20% of available space)      │
+│  DATA partition: $data_size_default (10% of available space)    │
+│  HOME partition: $home_size_default (all remaining space)       │
+│  SWAP partition: ${swap_size_default}M (rounded RAM size)       │
+└─────────────────────────────────────────────────────────────────┘
+EOF
+    
+    print_info "You can accept the suggested sizes or specify your own."
+    print_info "HOME partition will automatically use all remaining free space unless you specify a custom size."
+    
+    # Get ROOT partition size
+    while true; do
+        echo -n "Size for ROOT partition [$root_size_default]: "
+        read root_input
+        if [[ -z "$root_input" ]]; then
+            root_size=$root_size_default
+            break
+        elif [[  $ root_input =~ ^[0-9]+[MG]? $  ]]; then
+            # Add M if no unit specified
+            [[  $ root_input =~ [MG] $  ]] && root_size="$root_input" || root_size="${root_input}M"
+            break
+        else
+            print_error "Invalid size format. Use numbers with optional M or G (e.g., 2048M, 2G)"
+        fi
+    done
+    
+    # Get VAR partition size
+    while true; do
+        echo -n "Size for VAR partition [$var_size_default]: "
+        read var_input
+        if [[ -z "$var_input" ]]; then
+            var_size=$var_size_default
+            break
+        elif [[  $ var_input =~ ^[0-9]+[MG]? $  ]]; then
+            [[  $ var_input =~ [MG] $  ]] && var_size="$var_input" || var_size="${var_input}M"
+            break
+        else
+            print_error "Invalid size format. Use numbers with optional M or G (e.g., 2048M, 2G)"
+        fi
+    done
+    
+    # Get USR partition size
+    while true; do
+        echo -n "Size for USR partition [$usr_size_default]: "
+        read usr_input
+        if [[ -z "$usr_input" ]]; then
+            usr_size=$usr_size_default
+            break
+        elif [[  $ usr_input =~ ^[0-9]+[MG]? $  ]]; then
+            [[  $ usr_input =~ [MG] $  ]] && usr_size="$usr_input" || usr_size="${usr_input}M"
+            break
+        else
+            print_error "Invalid size format. Use numbers with optional M or G (e.g., 2048M, 2G)"
+        fi
+    done
+    
+    # Get DATA partition size
+    while true; do
+        echo -n "Size for DATA partition [$data_size_default]: "
+        read data_input
+        if [[ -z "$data_input" ]]; then
+            data_size=$data_size_default
+            break
+        elif [[  $ data_input =~ ^[0-9]+[MG]? $  ]]; then
+            [[  $ data_input =~ [MG] $  ]] && data_size="$data_input" || data_size="${data_input}M"
+            break
+        else
+            print_error "Invalid size format. Use numbers with optional M or G (e.g., 2048M, 2G)"
+        fi
+    done
+    
+    # Get HOME partition size
+    print_info "HOME partition will use all remaining space by default."
+    echo -n "Do you want to specify a custom size for HOME instead of using all remaining space? [y/n]: "
+    read home_custom
+    
+    if [[  $ home_custom =~ ^[Yy] $  ]]; then
+        while true; do
+            echo -n "Size for HOME partition: "
+            read home_input
+            if [[  $ home_input =~ ^[0-9]+[MG]? $  ]]; then
+                [[  $ home_input =~ [MG] $  ]] && home_size="$home_input" || home_size="${home_input}M"
+                use_remaining_for_home=false
+                break
+            else
+                print_error "Invalid size format. Use numbers with optional M or G (e.g., 2048M, 2G)"
+            fi
+        done
+    else
+        home_size="remaining"
+        use_remaining_for_home=true
+    fi
+    
+    # Get SWAP partition size
+    while true; do
+        echo -n "Size for SWAP partition [${swap_size_default}M]: "
+        read swap_input
+        if [[ -z "$swap_input" ]]; then
+            swap_size="${swap_size_default}M"
+            break
+        elif [[  $ swap_input =~ ^[0-9]+[MG]? $  ]]; then
+            [[  $ swap_input =~ [MG] $  ]] && swap_size="$swap_input" || swap_size="${swap_input}M"
+            break
+        else
+            print_error "Invalid size format. Use numbers with optional M or G (e.g., 2048M, 2G)"
+        fi
+    done
+    
+    # Summary
+    print_success "Partition configuration:"
+    echo "  EFI: 512M"
+    echo "  ROOT: $root_size" 
+    echo "  VAR: $var_size"
+    echo "  USR: $usr_size"
+    echo "  DATA: $data_size"
+    if $use_remaining_for_home; then
+        echo "  HOME: all remaining space"
+    else
+        echo "  HOME: $home_size"
+    fi
+    echo "  SWAP: $swap_size"
+    
+    echo -n "Continue with these partition sizes? [Y/n]: "
+    read confirm
+    if [[  $ confirm =~ ^[Nn] $  ]]; then
+        print_error "Partition setup cancelled. Please run the script again."
+        exit 1
+    fi
 }
 
-# Get user input for each partition size with defaults (SAME AS BEFORE)
-while true; do
-	read -p "$(echo -e ${CYAN}"Size for ROOT partition [${root_size_default}]: "${NC})" root_size
-	root_size=${root_size:-$root_size_default}
-	validate_size "$root_size" && break
-done
-
-while true; do
-	read -p "$(echo -e ${CYAN}"Size for VAR partition [${var_size_default}]: "${NC})" var_size
-	var_size=${var_size:-$var_size_default}
-	validate_size "$var_size" && break
-done
-
-while true; do
-	read -p "$(echo -e ${CYAN}"Size for USR partition [${usr_size_default}]: "${NC})" usr_size
-	usr_size=${usr_size:-$usr_size_default}
-	validate_size "$usr_size" && break
-done
-
-while true; do
-	read -p "$(echo -e ${CYAN}"Size for DATA partition [${data_size_default}]: "${NC})" data_size
-	data_size=${data_size:-$data_size_default}
-	validate_size "$data_size" && break
-done
-
-# CHANGED: HOME partition logic - ask if user wants custom size or remaining space
-echo -e "${YELLOW}HOME partition will use ALL remaining free space by default.${NC}"
-if confirm "Do you want to specify a custom size for HOME instead of using all remaining space?"; then
-	while true; do
-		read -p "$(echo -e ${CYAN}"Custom size for HOME partition: "${NC})" home_size_custom
-		if [ -n "$home_size_custom" ] && validate_size "$home_size_custom"; then
-			home_size="$home_size_custom"
-			use_remaining_for_home=false
-			break
-		fi
-	done
-	print_info "HOME partition set to custom size: ${home_size}"
-else
-	use_remaining_for_home=true
-	print_info "HOME partition will use all remaining space automatically."
-fi
-
-while true; do
-	read -p "$(echo -e ${CYAN}"Size for SWAP partition [${swap_size_default}]: "${NC})" swap_size
-	swap_size=${swap_size:-$swap_size_default}
-	validate_size "$swap_size" && break
-done
-
-print_info "Creating logical volumes with specified sizes..."
-
-# Create logical volumes (SAME AS BEFORE, except HOME)
-lvcreate -L $root_size vg0 -n root
-lvcreate -L $var_size vg0 -n var
-lvcreate -L $usr_size vg0 -n usr
-lvcreate -L $data_size vg0 -n data
-
-# CHANGED: HOME partition creation logic
-if [ "$use_remaining_for_home" = true ]; then
-	# Use ALL remaining free space for HOME
-	lvcreate -l 100%FREE vg0 -n home
-	check_success "Home volume created using all remaining space." "Failed to create home volume."
-else
-	# Use custom size specified by user
-	lvcreate -L $home_size vg0 -n home
-	check_success "Home volume created with custom size: ${home_size}." "Failed to create home volume."
-fi
-
-lvcreate -L $swap_size vg0 -n swap
-
-check_success "Logical volumes created successfully." "Failed to create logical volumes."
 
 # ┌─────────────────────────────────────────────────────────────────┐
 # │ Get mount options from user                                      │
