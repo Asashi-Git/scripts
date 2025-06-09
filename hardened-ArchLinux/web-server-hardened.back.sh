@@ -155,9 +155,9 @@ EOF
 
 	# Step 1: Create the logical volume
 	print_section "Logical Volume Setup"
-	print_step 1 $TOTAL_STEPS "Creating logical volume 'httpdata' with all remaining space..."
-	lvcreate -l 100%FREE vg0 -n httpdata || handle_error "Failed to create logical volume"
-	print_success "Logical volume created using all available space"
+	print_step 1 $TOTAL_STEPS "Creating logical volume 'httpdata'..."
+	lvcreate -L 5G vg0 -n httpdata || handle_error "Failed to create logical volume"
+	print_success "Logical volume created"
 
 	# Step 2: Encrypt the logical volume
 	print_step 2 $TOTAL_STEPS "Encrypting the volume (you will be prompted for a passphrase)..."
