@@ -278,7 +278,7 @@ disk_size_mb=$(lsblk -b $disk_path -o SIZE | sed -n '2p' | awk '{print int($1/10
 print_info "Detected disk size: ${disk_size_mb}MB"
 
 # Calculate available space AFTER subtracting EFI partition (512MB) AND swap partition (rounded RAM)
-available_space_mb=$((disk_size_mb - 512 - rounded_ram_mb))
+available_space_mb=$((disk_size_mb - 512))
 print_info "Available space for LVM partitions: ${available_space_mb}MB"
 
 # Calculate default sizes based on percentages (25% root, 15% var, 20% usr, 10% data, 30% home)
