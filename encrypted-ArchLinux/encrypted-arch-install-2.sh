@@ -243,64 +243,65 @@ vgcreate vg0 /dev/mapper/cryptlvm
 check_success "Volume group created successfully." "Failed to create volume group."
 
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ Get partition sizes from user                                    │
+# │ Get partition sizes from user - ONLY HOME LOGIC CHANGED         │
 # └─────────────────────────────────────────────────────────────────┘
 print_section "Setting up Partitions"
 
-# Get RAM size in MB and calculate swap automatically
+# Get RAM size in MB
 ram_size_mb=$(free -m | awk '/^Mem:/{print $2}')
 print_info "Detected system memory: ${ram_size_mb}MB"
 
-# Calculate swap size automatically (no user input needed)
+# Round up RAM size for swap partition
 if [ "$ram_size_mb" -le 2048 ]; then
-	swap_size="2G"
-	swap_size_mb=2048
+	rounded_ram="2G"
+	rounded_ram_mb=2048
 elif [ "$ram_size_mb" -le 4096 ]; then
-	swap_size="4G"
-	swap_size_mb=4096
+	rounded_ram="4G"
+	rounded_ram_mb=4096
 elif [ "$ram_size_mb" -le 8192 ]; then
-	swap_size="8G"
-	swap_size_mb=8192
+	rounded_ram="8G"
+	rounded_ram_mb=8192
 elif [ "$ram_size_mb" -le 16384 ]; then
-	swap_size="16G"
-	swap_size_mb=16384
+	rounded_ram="16G"
+	rounded_ram_mb=16384
 elif [ "$ram_size_mb" -le 32768 ]; then
-	swap_size="32G"
-	swap_size_mb=32768
+	rounded_ram="32G"
+	rounded_ram_mb=32768
 else
-	swap_size="64G"
-	swap_size_mb=65536
+	rounded_ram="64G"
+	rounded_ram_mb=65536
 fi
-print_info "Calculated swap partition size: ${swap_size}"
+print_info "Rounded RAM size for swap partition: ${rounded_ram}"
 
 # Get total disk size in MB
 disk_size_mb=$(lsblk -b $disk_path -o SIZE | sed -n '2p' | awk '{print int($1/1024/1024)}')
 print_info "Detected disk size: ${disk_size_mb}MB"
 
-# Calculate available space for LVM partitions (subtract EFI and swap)
-efi_size_mb=512
-available_space_mb=$((disk_size_mb - efi_size_mb - swap_size_mb))
-print_info "Available space for root, var, usr, data, home: ${available_space_mb}MB"
+# Calculate available space AFTER subtracting EFI partition (512MB) AND swap partition (rounded RAM)
+available_space_mb=$((disk_size_mb - 512 - rounded_ram_mb))
+print_info "Available space for LVM partitions: ${available_space_mb}MB"
 
-# Calculate default sizes based on percentages of AVAILABLE space (not total disk)
+# Calculate default sizes based on percentages (25% root, 15% var, 20% usr, 10% data, 30% home)
 root_size_default="$((available_space_mb * 25 / 100))M"
 var_size_default="$((available_space_mb * 15 / 100))M"
 usr_size_default="$((available_space_mb * 20 / 100))M"
 data_size_default="$((available_space_mb * 10 / 100))M"
-home_size_default="$((available_space_mb * 30 / 100))M"
+home_size_default="remaining space" # CHANGED: Display text instead of calculation
+swap_size_default="${rounded_ram}"  # Using rounded RAM value
 
-print_info "Suggested partition sizes based on available disk space:"
+print_info "Suggested partition sizes based on disk space and RAM:"
 echo -e "${CYAN}┌──────────────────────────────────────────────────────────┐${NC}"
 echo -e "${CYAN}│${NC} EFI partition: 512M (fixed)"
 echo -e "${CYAN}│${NC} ROOT partition: ${root_size_default} (25% of available space)"
 echo -e "${CYAN}│${NC} VAR partition: ${var_size_default} (15% of available space)"
 echo -e "${CYAN}│${NC} USR partition: ${usr_size_default} (20% of available space)"
 echo -e "${CYAN}│${NC} DATA partition: ${data_size_default} (10% of available space)"
-echo -e "${CYAN}│${NC} HOME partition: ${home_size_default} (30% of available space)"
-echo -e "${CYAN}│${NC} SWAP partition: ${swap_size} (automatically calculated)"
+echo -e "${CYAN}│${NC} HOME partition: ${home_size_default} (all remaining space)"
+echo -e "${CYAN}│${NC} SWAP partition: ${swap_size_default} (rounded RAM size)"
 echo -e "${CYAN}└──────────────────────────────────────────────────────────┘${NC}"
 
 print_info "You can accept the suggested sizes or specify your own."
+print_info "HOME partition will automatically use all remaining space unless you specify a custom size."
 
 # Function to validate size format
 validate_size() {
@@ -313,7 +314,7 @@ validate_size() {
 	fi
 }
 
-# Get user input for each partition size with defaults (except swap)
+# Get user input for each partition size with defaults (SAME AS BEFORE)
 while true; do
 	read -p "$(echo -e ${CYAN}"Size for ROOT partition [${root_size_default}]: "${NC})" root_size
 	root_size=${root_size:-$root_size_default}
@@ -338,20 +339,48 @@ while true; do
 	validate_size "$data_size" && break
 done
 
+# CHANGED: HOME partition logic - ask if user wants custom size or remaining space
+echo -e "${YELLOW}HOME partition will use ALL remaining free space by default.${NC}"
+if confirm "Do you want to specify a custom size for HOME instead of using all remaining space?"; then
+	while true; do
+		read -p "$(echo -e ${CYAN}"Custom size for HOME partition: "${NC})" home_size_custom
+		if [ -n "$home_size_custom" ] && validate_size "$home_size_custom"; then
+			home_size="$home_size_custom"
+			use_remaining_for_home=false
+			break
+		fi
+	done
+	print_info "HOME partition set to custom size: ${home_size}"
+else
+	use_remaining_for_home=true
+	print_info "HOME partition will use all remaining space automatically."
+fi
+
 while true; do
-	read -p "$(echo -e ${CYAN}"Size for HOME partition [${home_size_default}]: "${NC})" home_size
-	home_size=${home_size:-$home_size_default}
-	validate_size "$home_size" && break
+	read -p "$(echo -e ${CYAN}"Size for SWAP partition [${swap_size_default}]: "${NC})" swap_size
+	swap_size=${swap_size:-$swap_size_default}
+	validate_size "$swap_size" && break
 done
 
 print_info "Creating logical volumes with specified sizes..."
-print_info "SWAP will be created automatically with size: ${swap_size}"
 
+# Create logical volumes (SAME AS BEFORE, except HOME)
 lvcreate -L $root_size vg0 -n root
 lvcreate -L $var_size vg0 -n var
 lvcreate -L $usr_size vg0 -n usr
 lvcreate -L $data_size vg0 -n data
-lvcreate -L $home_size vg0 -n home
+
+# CHANGED: HOME partition creation logic
+if [ "$use_remaining_for_home" = true ]; then
+	# Use ALL remaining free space for HOME
+	lvcreate -l 100%FREE vg0 -n home
+	check_success "Home volume created using all remaining space." "Failed to create home volume."
+else
+	# Use custom size specified by user
+	lvcreate -L $home_size vg0 -n home
+	check_success "Home volume created with custom size: ${home_size}." "Failed to create home volume."
+fi
+
 lvcreate -L $swap_size vg0 -n swap
 
 check_success "Logical volumes created successfully." "Failed to create logical volumes."
