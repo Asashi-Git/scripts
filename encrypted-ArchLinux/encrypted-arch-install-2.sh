@@ -382,7 +382,16 @@ lvcreate -L $root_size vg0 -n root
 lvcreate -L $var_size vg0 -n var
 lvcreate -L $usr_size vg0 -n usr
 lvcreate -L $data_size vg0 -n data
-lvcreate -L $home_size vg0 -n home
+
+# Handle HOME partition creation with conditional logic
+if [ "$use_remaining_for_home" = true ]; then
+  print_info "Creating HOME volume with all remaining space..."
+  lvcreate -l 100%FREE vg0 -n home
+else
+  print_info "Creating HOME volume with custom size: ${home_size}"
+  lvcreate -L $home_size vg0 -n home
+fi
+
 lvcreate -L $swap_size vg0 -n swap
 
 check_success "Logical volumes created successfully." "Failed to create logical volumes."
