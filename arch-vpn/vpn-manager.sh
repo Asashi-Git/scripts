@@ -1,22 +1,6 @@
 #!/usr/bin/env bash
 # WireGuard Server and User Manager for Arch Linux
-# Author: Your team
 # Purpose: Educational use only in isolated lab environments
-# Requires: bash, wg, wg-quick, wireguard-tools, systemd; optional: qrencode
-# Tested on: Arch Linux
-#
-# Features:
-# - One-time server initialization (keys, wg0.conf, NAT rules via iptables)
-# - Interactive peer creation with full/split tunnel options + optional preshared key
-# - Auto IP allocation from 10.0.0.0/24
-# - Exports client .conf and shows QR if qrencode exists
-# - List/revoke peers, regenerate client files
-#
-# Security Notes:
-# - Keys stored under /etc/wireguard/keys with 0700 perms
-# - Minimal output of private keys to terminal
-# - Backups original wg0.conf to wg0.conf.bak.YYYYmmdd-HHMMSS
-
 set -euo pipefail
 
 WG_DIR="/etc/wireguard"
@@ -25,35 +9,47 @@ SERVER_CONF="${WG_DIR}/wg0.conf"
 SERVER_IF="wg0"
 DEFAULT_VPN_NET="10.0.0.0/24"
 SERVER_ADDR="10.0.0.1/24"
-DEFAULT_PORT="51820" # You can randomize during setup
-# Preset split-tunnel networks (your lab)
+DEFAULT_PORT="51820"
 PRESET_SPLIT_NETS=("192.168.0.0/24" "192.168.40.0/24" "192.168.50.0/24" "192.168.60.0/24" "192.168.70.0/24" "192.168.80.0/24")
 
 # --- Helpers ---------------------------------------------------------------
 
-need_root() {
-  if [[ $EUID -ne 0 ]]; then
-    echo "[-] Please run as root (sudo)."
-    exit 1
+need_root() { if [[ $EUID -ne 0 ]]; then
+  echo "[-] Please run as root (sudo)."
+  exit 1
+fi; }
+cmd_exists() { command -v "$1" &>/dev/null; }
+pause() { read -rp "Press Enter to continue..."; }
+timestamp() { date +"%Y%m%d-%H%M%S"; }
+detect_wan_iface() { ip route show default | awk '/default/ {print $5; exit}'; }
+
+# NEW: détecter IP publique proprement (fallback si ifconfig.me indispo)
+detect_public_ip() {
+  local ip=""
+  if cmd_exists curl; then
+    ip=$(curl -4fsS --max-time 3 ifconfig.me || true)
+    [[ -z "${ip}" ]] && ip=$(curl -4fsS --max-time 3 icanhazip.com || true)
   fi
+  echo "${ip}"
 }
 
-cmd_exists() { command -v "$1" &>/dev/null; }
-
-pause() { read -rp "Press Enter to continue..."; }
-
-timestamp() { date +"%Y%m%d-%H%M%S"; }
-
-detect_wan_iface() {
-  # Detect default route interface (Internet-facing)
-  ip route show default | awk '/default/ {print $5; exit}'
+# NEW: IP locale “principale” (affichage URL LAN)
+detect_local_ip() {
+  hostname -I 2>/dev/null | awk '{print $1}'
 }
 
 ensure_packages() {
-  # Optional: install wireguard-tools if missing
   if ! cmd_exists wg || ! cmd_exists wg-quick; then
     echo "[*] Installing wireguard-tools..."
     pacman -Sy --noconfirm wireguard-tools
+  fi
+  if ! cmd_exists curl; then
+    echo "[*] Installing curl..."
+    pacman -Sy --noconfirm curl
+  fi
+  if ! cmd_exists python3; then
+    echo "[*] Installing python (for temporary HTTP server)..."
+    pacman -Sy --noconfirm python
   fi
 }
 
@@ -68,8 +64,9 @@ ensure_sysctl_ipfwd() {
 
 backup_conf() {
   if [[ -f "$SERVER_CONF" ]]; then
-    cp -a "$SERVER_CONF" "${SERVER_CONF}.bak.$(timestamp)"
-    echo "[*] Backup created: ${SERVER_CONF}.bak.$(timestamp)"
+    local bk="${SERVER_CONF}.bak.$(timestamp)"
+    cp -a "$SERVER_CONF" "$bk"
+    echo "[*] Backup created: $bk"
   fi
 }
 
@@ -79,30 +76,20 @@ init_dirs() {
 }
 
 gen_keypair() {
-  # $1 = basename (e.g., server, client-alice)
   local base="$1"
   umask 077
   wg genkey | tee "${KEY_DIR}/${base}-priv.key" | wg pubkey >"${KEY_DIR}/${base}-pub.key"
 }
 
 gen_psk() {
-  # $1 = basename
   local base="$1"
   umask 077
   wg genpsk >"${KEY_DIR}/${base}-psk.key"
 }
-
-read_key() {
-  # $1 = path
-  tr -d '\n' <"$1"
-}
-
-server_initialized() {
-  [[ -f "$SERVER_CONF" ]]
-}
+read_key() { tr -d '\n' <"$1"; }
+server_initialized() { [[ -f "$SERVER_CONF" ]]; }
 
 allocate_client_ip() {
-  # Find next free IP in 10.0.0.0/24 starting from .2
   local used
   used=$(awk '/AllowedIPs/ {print $3}' "$SERVER_CONF" 2>/dev/null | cut -d/ -f1 || true)
   for i in $(seq 2 254); do
@@ -115,13 +102,8 @@ allocate_client_ip() {
   return 1
 }
 
-enable_service() {
-  systemctl enable --now "wg-quick@${SERVER_IF}.service"
-}
-
-restart_service() {
-  systemctl restart "wg-quick@${SERVER_IF}.service"
-}
+enable_service() { systemctl enable --now "wg-quick@${SERVER_IF}.service"; }
+restart_service() { systemctl restart "wg-quick@${SERVER_IF}.service"; }
 
 # --- Server Initialization --------------------------------------------------
 
@@ -151,15 +133,22 @@ init_server() {
     echo "[*] Detected WAN interface: ${wan_if}"
   fi
 
-  # Port and endpoint
-  local port endpoint
+  local port endpoint_host endpoint_auto
   read -rp "Enter listen UDP port [${DEFAULT_PORT}]: " port
   port=${port:-$DEFAULT_PORT}
 
-  read -rp "Enter public endpoint (WAN IP or FQDN): " endpoint
-  if [[ -z "$endpoint" ]]; then
-    echo "[-] Endpoint is required (e.g., your WAN IP 82.67.90.49 or DNS)."
-    exit 1
+  # NEW: endpoint auto via IP publique détectée
+  endpoint_auto=$(detect_public_ip || true)
+  if [[ -n "$endpoint_auto" ]]; then
+    endpoint_host="$endpoint_auto"
+    echo "[*] Detected public IP: ${endpoint_host}"
+  else
+    echo "[!] Unable to detect public IP automatically."
+    read -rp "Enter public endpoint host (WAN IP or FQDN): " endpoint_host
+    [[ -z "$endpoint_host" ]] && {
+      echo "[-] Endpoint is required."
+      exit 1
+    }
   fi
 
   # Server keys
@@ -192,10 +181,10 @@ EOF
   echo "=== Server ready ==="
   echo "PublicKey: ${server_pub}"
   echo "Listen: ${port}/udp"
-  echo "Endpoint: ${endpoint}:${port}"
+  echo "Endpoint: ${endpoint_host}:${port}"
   echo "Config: ${SERVER_CONF}"
   echo
-  echo "[!] Remember to allow UDP ${port} on your firewall (UFW/pfSense) and forward it to this VM."
+  echo "[!] Remember to allow UDP ${port} on your firewall and forward it to this VM."
 }
 
 # --- Peer Management --------------------------------------------------------
@@ -213,13 +202,11 @@ add_peer() {
     return
   }
 
-  # Check if peer already exists
   if grep -q "### ${name}$" "$SERVER_CONF"; then
     echo "[-] Peer '${name}' already exists in ${SERVER_CONF}."
     return
   fi
 
-  # Full-tunnel vs Split-tunnel
   echo "Choose traffic mode:"
   echo "  1) Full tunnel (0.0.0.0/0, ::/0)"
   echo "  2) Split tunnel (choose networks)"
@@ -238,20 +225,16 @@ add_peer() {
       echo "  $idx) $n"
       ((idx++))
     done
-    echo "You can also add custom CIDRs later."
     local selections sel_arr=()
     read -rp "Enter numbers separated by spaces (e.g., '1 4 6'), or leave empty for manual: " selections
     if [[ -n "$selections" ]]; then
       for s in $selections; do
-        if [[ "$s" =~ ^[0-9]+$ ]] && ((s >= 1 && s <= ${#PRESET_SPLIT_NETS[@]})); then
-          sel_arr+=("${PRESET_SPLIT_NETS[$((s - 1))]}")
-        fi
+        if [[ "$s" =~ ^[0-9]+$ ]] && ((s >= 1 && s <= ${#PRESET_SPLIT_NETS[@]})); then sel_arr+=("${PRESET_SPLIT_NETS[$((s - 1))]}"); fi
       done
     fi
     local custom=""
     read -rp "Add custom CIDRs (comma-separated, or empty): " custom
     if [[ -n "$custom" ]]; then
-      # normalize commas
       IFS=',' read -r -a extra <<<"$custom"
       for e in "${extra[@]}"; do
         e=$(echo "$e" | xargs)
@@ -270,21 +253,18 @@ add_peer() {
     dns=${dns:-"192.168.0.254"}
   fi
 
-  # Optional preshared key
   local use_psk="n"
   read -rp "Use a preshared key for this peer? (y/N): " use_psk
   use_psk=${use_psk:-n}
 
-  # Allocate IP
-  local ip
+  local ip ip_cidr
   ip=$(allocate_client_ip) || {
     echo "[-] No free IPs available in 10.0.0.0/24."
     return
   }
-  local ip_cidr="${ip}/32"
+  ip_cidr="${ip}/32"
   echo "[*] Assigning ${ip_cidr} to peer '${name}'."
 
-  # Generate keys
   gen_keypair "client-${name}"
   local priv pub
   priv=$(read_key "${KEY_DIR}/client-${name}-priv.key")
@@ -296,17 +276,18 @@ add_peer() {
     psk=$(read_key "${KEY_DIR}/client-${name}-psk.key")
   fi
 
-  # Read server public key and endpoint/port
-  local server_pub server_port endpoint
+  local server_pub server_port endpoint_host endpoint
   server_pub=$(read_key "${KEY_DIR}/server-pub.key")
   server_port=$(awk -F'= ' '/^ListenPort/ {print $2}' "$SERVER_CONF")
-  # Ask endpoint for client file convenience (don’t overwrite server conf)
-  read -rp "Endpoint for client (host:port) [leave empty to use previously entered or IP:port]: " endpoint
-  if [[ -z "$endpoint" ]]; then
-    # Try to recover from earlier message or localhost IP:
-    # Grabs the first non-comment 'ListenPort' and assumes admin knows host; fall back to placeholder
-    endpoint="<your.public.endpoint>:${server_port}"
+  # NEW: propose endpoint auto (public IP) + port
+  endpoint_host=$(detect_public_ip || true)
+  if [[ -z "$endpoint_host" ]]; then
+    read -rp "Endpoint host (FQDN or IP) [enter to use LAN IP]: " endpoint_host
+    [[ -z "$endpoint_host" ]] && endpoint_host="$(detect_local_ip)"
+  else
+    echo "[*] Detected public IP for endpoint: ${endpoint_host}"
   fi
+  endpoint="${endpoint_host}:${server_port}"
 
   # Append Peer to server config
   {
@@ -317,7 +298,6 @@ add_peer() {
     [[ -n "$psk" ]] && echo "PresharedKey = ${psk}"
     echo "AllowedIPs = ${ip_cidr}"
   } >>"$SERVER_CONF"
-
   chmod 600 "$SERVER_CONF"
   restart_service
   echo "[*] Peer '${name}' added and service restarted."
@@ -341,14 +321,10 @@ add_peer() {
 
   echo "=== Client file ==="
   echo "$client_conf"
-  echo "You can distribute this file securely to the user."
-
   if cmd_exists qrencode; then
-    echo "[*] Showing QR (use 'wg-quick import' on mobile):"
+    echo "[*] Showing QR:"
     qrencode -t ansiutf8 <"$client_conf"
-  else
-    echo "[i] Install 'qrencode' for QR output (pacman -S qrencode)."
-  fi
+  else echo "[i] Install 'qrencode' for QR output."; fi
 }
 
 list_peers() {
@@ -357,10 +333,7 @@ list_peers() {
     return
   fi
   echo "=== Current Peers (from ${SERVER_CONF}) ==="
-  awk '
-    BEGIN{peer="";name=""}
-    /^### /{name=$0; sub(/^### /,"",name); print "- " name;}
-  ' "$SERVER_CONF"
+  awk '/^### /{sub(/^### /,""); print "- "$0;}' "$SERVER_CONF" || true
   echo
   echo "=== Runtime Status (wg show) ==="
   wg show
@@ -376,33 +349,24 @@ revoke_peer() {
     echo "[-] Name required."
     return
   }
-
   if ! grep -q "### ${name}$" "$SERVER_CONF"; then
     echo "[-] Peer '${name}' not found."
     return
   fi
-
   backup_conf
-  # Remove block from '### name' until next blank line or next [Peer]/### tag
   awk -v n="### ${name}" '
     BEGIN{skip=0}
     $0==n {skip=1; next}
     skip==1 && /^\s*(\[Peer\]|### |$)/ {skip=0}
     skip==0 {print}
   ' "$SERVER_CONF" >"${SERVER_CONF}.tmp"
-
   mv "${SERVER_CONF}.tmp" "$SERVER_CONF"
   chmod 600 "$SERVER_CONF"
   restart_service
-
-  # Optionally remove client files/keys
   read -rp "Delete keys and client config for '${name}'? (y/N): " del
   del=${del:-n}
   if [[ "$del" =~ ^[Yy]$ ]]; then
-    rm -f "${WG_DIR}/${name}.conf" \
-      "${KEY_DIR}/client-${name}-priv.key" \
-      "${KEY_DIR}/client-${name}-pub.key" \
-      "${KEY_DIR}/client-${name}-psk.key" 2>/dev/null || true
+    rm -f "${WG_DIR}/${name}.conf" "${KEY_DIR}/client-${name}-priv.key" "${KEY_DIR}/client-${name}-pub.key" "${KEY_DIR}/client-${name}-psk.key" 2>/dev/null || true
     echo "[*] Client files removed."
   fi
   echo "[*] Peer '${name}' revoked."
@@ -413,41 +377,30 @@ regen_client_conf() {
     echo "[-] Server not initialized yet."
     return
   fi
-
   read -rp "Enter peer name to regenerate .conf (keys unchanged): " name
   [[ -z "$name" ]] && {
     echo "[-] Name required."
     return
   }
 
-  # Extract current IP, PSK presence, and server params
-  local ip_line
-  ip_line=$(awk -v n="### ${name}" '
-    $0==n {flag=1}
-    flag && /^AllowedIPs/ {print; exit}
-  ' "$SERVER_CONF") || true
-
-  if [[ -z "$ip_line" ]]; then
+  local ip_line ip priv psk pub
+  ip_line=$(awk -v n="### ${name}" '$0==n {flag=1} flag && /^AllowedIPs/ {print; exit}' "$SERVER_CONF") || true
+  [[ -z "$ip_line" ]] && {
     echo "[-] Peer '${name}' not found."
     return
-  fi
-
-  local ip
+  }
   ip=$(awk -F'= ' '{print $2}' <<<"$ip_line" | cut -d'/' -f1)
 
-  local priv pub psk_file psk=""
   priv=$(read_key "${KEY_DIR}/client-${name}-priv.key")
   pub=$(read_key "${KEY_DIR}/client-${name}-pub.key")
-  psk_file="${KEY_DIR}/client-${name}-psk.key"
-  if [[ -f "$psk_file" ]]; then
-    psk=$(read_key "$psk_file")
-  fi
+  [[ -f "${KEY_DIR}/client-${name}-psk.key" ]] && psk=$(read_key "${KEY_DIR}/client-${name}-psk.key") || psk=""
 
-  local server_pub server_port endpoint allowed_ips dns
+  local server_pub server_port endpoint_host endpoint allowed_ips dns
   server_pub=$(read_key "${KEY_DIR}/server-pub.key")
   server_port=$(awk -F'= ' '/^ListenPort/ {print $2}' "$SERVER_CONF")
-  read -rp "New Endpoint for client (host:port), empty to keep placeholder: " endpoint
-  endpoint=${endpoint:-"<your.public.endpoint>:${server_port}"}
+  endpoint_host=$(detect_public_ip || true)
+  [[ -z "$endpoint_host" ]] && endpoint_host="$(detect_local_ip)"
+  endpoint="${endpoint_host}:${server_port}"
   read -rp "AllowedIPs for client (comma-separated) [0.0.0.0/0, ::/0]: " allowed_ips
   allowed_ips=${allowed_ips:-"0.0.0.0/0, ::/0"}
   read -rp "DNS (empty to omit) [1.1.1.1]: " dns
@@ -469,11 +422,145 @@ regen_client_conf() {
   } >"$client_conf"
   chmod 600 "$client_conf"
   echo "[*] Regenerated: ${client_conf}"
-
   if cmd_exists qrencode; then
     echo "[*] QR:"
     qrencode -t ansiutf8 <"$client_conf"
   fi
+}
+
+# --- NEW: UFW helpers + HTTP export ----------------------------------------
+
+ufw_is_active() {
+  cmd_exists ufw && ufw status 2>/dev/null | grep -qi "Status: active"
+}
+
+ufw_open_8080() {
+  if ufw_is_active; then
+    echo "[*] UFW active: allowing TCP 8080 temporarily (rule 'wg-tmp-http')"
+    ufw allow 8080/tcp comment 'wg-tmp-http' >/dev/null
+  fi
+}
+
+ufw_close_8080() {
+  if ufw_is_active; then
+    echo "[*] Removing UFW rule for TCP 8080"
+    # Delete by comment is not trivial; remove by port
+    yes | ufw delete allow 8080/tcp >/dev/null || true
+  fi
+}
+
+export_and_serve_peer() {
+  # Copie le .conf d’un peer dans un dossier /tmp dédié et lance un HTTP server
+  read -rp "Peer name to export: " name
+  local src="${WG_DIR}/${name}.conf"
+  if [[ ! -f "$src" ]]; then
+    echo "[-] ${src} not found. Generate it first."
+    return
+  fi
+
+  local tmpdir
+  tmpdir=$(mktemp -d -p /tmp wgexport-XXXX)
+  chmod 700 "$tmpdir"
+
+  # Copie stricte + copie lisible par le serveur web (0644)
+  cp -a "$src" "${tmpdir}/${name}.conf.secure"
+  chmod 600 "${tmpdir}/${name}.conf.secure"
+  cp -a "$src" "${tmpdir}/${name}.conf"
+  chmod 644 "${tmpdir}/${name}.conf"
+
+  local pub_ip local_ip
+  pub_ip=$(detect_public_ip || true)
+  local_ip=$(detect_local_ip || true)
+  echo "[*] Exported to: ${tmpdir}/${name}.conf"
+
+  ufw_open_8080
+
+  echo "[*] Starting temporary HTTP server on 0.0.0.0:8080"
+  echo "    LAN URL:  http://${local_ip:-<LAN_IP>}:8080/${name}.conf"
+  [[ -n "$pub_ip" ]] && echo "    WAN URL:  http://${pub_ip}:8080/${name}.conf (requires pfSense NAT/port-fwd)"
+
+  # Lance en arrière-plan et attend Enter pour arrêter
+  (cd "$tmpdir" && python3 -m http.server 8080 --bind 0.0.0.0 >/dev/null 2>&1) &
+  srv_pid=$(sudo ps -aux | grep -E '[8]080' | awk '{print $2}' | head -n1)
+
+  read -rp "Press Enter to stop the temporary HTTP server..."
+  kill "$srv_pid" 2>/dev/null || true
+  wait "$srv_pid" 2>/dev/null || true
+
+  ufw_close_8080
+
+  # Purge
+  rm -rf "$tmpdir"
+  echo "[*] Temporary files removed and HTTP server stopped."
+}
+
+# --- NEW: Edit a client .conf (AllowedIPs / DNS) ---------------------------
+
+edit_peer_conf() {
+  read -rp "Peer name to edit: " name
+  local conf="${WG_DIR}/${name}.conf"
+  if [[ ! -f "$conf" ]]; then
+    echo "[-] ${conf} not found."
+    return
+  fi
+
+  echo "What do you want to edit?"
+  echo "  1) AllowedIPs (in [Peer])"
+  echo "  2) DNS (in [Interface])"
+  echo "  3) Both"
+  read -rp "Choice [1/2/3]: " ch
+  ch=${ch:-3}
+
+  local new_allowed="" new_dns=""
+  if [[ "$ch" == "1" || "$ch" == "3" ]]; then
+    read -rp "New AllowedIPs (comma-separated, e.g., 0.0.0.0/0, ::/0): " new_allowed
+  fi
+  if [[ "$ch" == "2" || "$ch" == "3" ]]; then
+    read -rp "New DNS (comma-separated or single IP, leave empty to remove): " new_dns
+  fi
+
+  # awk réécrit le fichier en mettant à jour/ajoutant les lignes
+  awk -v set_allowed="$new_allowed" -v set_dns="$new_dns" '
+    BEGIN{
+      in_iface=0; in_peer=0;
+      done_dns=0; done_allowed=0;
+    }
+    /^\[Interface\]/{in_iface=1; in_peer=0}
+    /^\[Peer\]/{in_peer=1; in_iface=0}
+
+    {
+      # Update DNS in [Interface]
+      if(in_iface && set_dns!=""){
+        if($0 ~ /^DNS[[:space:]]*=/){ if(!done_dns){ print "DNS = " set_dns; done_dns=1; } next }
+      }
+      # Remove DNS if empty string explicitly requested (user hit enter? we keep existing)
+      if(in_iface && set_dns=="" && $0 ~ /^DNS[[:space:]]*=/){ next }
+
+      # Update AllowedIPs in [Peer]
+      if(in_peer && set_allowed!=""){
+        if($0 ~ /^AllowedIPs[[:space:]]*=/){ if(!done_allowed){ print "AllowedIPs = " set_allowed; done_allowed=1; } next }
+      }
+
+      print
+    }
+    END{
+      # If needed, append keys if they did not exist
+      if(set_dns!="" && !done_dns){
+        print ""
+        print "[Interface]"
+        print "DNS = " set_dns
+      }
+      if(set_allowed!="" && !done_allowed){
+        print ""
+        print "[Peer]"
+        print "AllowedIPs = " set_allowed
+      }
+    }
+  ' "$conf" >"${conf}.tmp"
+
+  mv "${conf}.tmp" "$conf"
+  chmod 600 "$conf"
+  echo "[*] Updated: $conf"
 }
 
 # --- Menu -------------------------------------------------------------------
@@ -487,8 +574,10 @@ main_menu() {
     echo "3) List peers and status"
     echo "4) Revoke a peer"
     echo "5) Regenerate client config"
-    echo "6) Show server public info"
-    echo "7) Exit"
+    echo "6) Export a client .conf and serve it temporarily (HTTP 8080)"
+    echo "7) Edit a client .conf (AllowedIPs/DNS)"
+    echo "8) Show server public info"
+    echo "9) Exit"
     echo "==================================================="
     read -rp "Choose an option: " choice
     case "$choice" in
@@ -500,25 +589,29 @@ main_menu() {
       ;;
     4) revoke_peer ;;
     5) regen_client_conf ;;
-    6)
+    6) export_and_serve_peer ;;
+    7) edit_peer_conf ;;
+    8)
       if server_initialized; then
         echo "Server conf: ${SERVER_CONF}"
         awk '/^\[Interface\]/{p=1} p && /^ListenPort/ {print; p=0}' "$SERVER_CONF"
         echo -n "PublicKey: "
         read_key "${KEY_DIR}/server-pub.key"
         echo
+        local ep_host=$(detect_public_ip || true)
+        local ep_port=$(awk -F'= ' '/^ListenPort/ {print $2}' "$SERVER_CONF")
+        [[ -n "$ep_host" ]] && echo "Endpoint (auto): ${ep_host}:${ep_port}"
       else
         echo "[-] Server not initialized."
       fi
       pause
       ;;
-    7) exit 0 ;;
+    9) exit 0 ;;
     *) echo "Invalid choice" ;;
     esac
   done
 }
 
 # --- Entry ------------------------------------------------------------------
-
 need_root
 main_menu
