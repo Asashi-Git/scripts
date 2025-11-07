@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # cleanup_logs.sh — filename-date based retention + pacman/yay cache (Arch)
 # Requires: bash, GNU date, find, paccache (from pacman-contrib, optional)
+#
+# Author: Decarnelle Samuel
+#
 # Preview (no deletion, verbose):
 # sudo /usr/local/bin/cleanup_logs.sh --dry-run -v
 # Real run:
