@@ -1,0 +1,5 @@
+# generic_name     optional manager-specific overrides
+net-tools          zypper=net-tools-deprecated nix=nettools
+curl
+nmap
+htop
