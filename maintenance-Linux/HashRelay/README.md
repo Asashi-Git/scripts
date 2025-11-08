@@ -57,15 +57,6 @@ If the server is Down, the backup does not start, and a message is written to a 
 ##### Contact IP
 This script will be used by the client to obtain the server’s IP address and the port used to communicate ??? 
 
-
-
-### HashRelay Server
-
-#### Presentation
-
-
-
-
 #### Utilisation
 
 Afin d'ajouter un fichier au repertoire de backup, une foi le service demarer, le client n'aura qu'a faire la commande "`hashrelay -add FileName`" or "`hashrelay -a FileName`". 
@@ -79,6 +70,9 @@ Si le client veux connaitre les differentes possibilites il lui suffira de taper
 #### Installation
 Pour installer HashRelay-Client sur votre machine il suffit de ...
 
+### HashRelay Server
+
+#### Presentation
 
 
 ### Old Version
