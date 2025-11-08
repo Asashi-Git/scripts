@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Installing Git and other tools
-sudo pacman -S git unzip eza ttf-dejavu noto-fonts noto-fonts-cjk noto-fonts-emoji ttf-liberation ttf-jetbrains-mono ttf-fira-code ttf-cascadia-code ttf-roboto ttf-ubuntu-font-family ttf-opensans yazi
+sudo pacman -S git unzip eza ttf-dejavu noto-fonts noto-fonts-cjk noto-fonts-emoji ttf-liberation ttf-jetbrains-mono ttf-fira-code ttf-cascadia-code ttf-roboto ttf-ubuntu-font-family ttf-opensans yazi btop ncdu
 sudo pacman -S zoxide --needed
 
 # Install Oh My Zsh first
