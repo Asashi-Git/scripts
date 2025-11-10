@@ -109,10 +109,26 @@ agent_selector
 
 # Moving the specifics scripts to the created directory /usr/local/bin/HashRelay
 if [[ "$CLIENT_AGENT" == true ]]; then
-  echo "CLIENT_AGENT=true"
+  if [[ "$VERBOSE" == true ]]; then
+    echo "CLIENT_AGENT=true"
+    echo "Starting to move the client necessary scripts to the HashRelay directory"
+  fi
+  # Moving the client necessary scripts to the HashRelay directory
 elif [[ "$SERVER_AGENT" == true ]]; then
-  echo "SERVER_AGENT=true"
+  if [[ "$VERBOSE" == true ]]; then
+    echo "SERVER_AGENT=true"
+    echo "Starting to move the server necessary scripts to the HashRelay directory"
+    # Moving the server necessary scripts to the HashRelay directory
+  fi
 else
   echo "Cannot find the agent configuration (This should not happen)."
   exit 1
 fi
+
+# This fonction make the scripts inside the /usr/local/bin/HashRelay executables
+chmod_scripts() {
+  # Make the scripts inside the directory executables
+  while true; do
+    echo "Making the necessary scripts executables"
+  done
+}
