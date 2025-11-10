@@ -19,6 +19,7 @@ SERVER_AGENT=false # This variable will be changed when the user choose his vers
 
 VERBOSE=false # If true, print extra diagnostic logs
 DRY_RUN=false # If true, only print commands; do not execute
+LOCATION_PATH=""
 
 # usage(): prints help text:
 usage() {
@@ -189,11 +190,12 @@ installer_path() {
   printf '%s\n' "$path"
 }
 
-# Echo just the directory that contains the installer (often what you need).
+# Echo just the directory that contains the installer (what you need).
 installer_dir() {
   local path
   path=$(installer_path) || return 1
-  printf '%s\n' "${path%/*}"
+  LOCATION_PATH="${path%/*}" # Remove the shortest match from the end
 }
 
 installer_dir
+echo "Your path is $LOCATION_PATH"
