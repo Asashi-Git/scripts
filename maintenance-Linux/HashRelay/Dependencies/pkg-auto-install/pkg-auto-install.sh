@@ -6,7 +6,7 @@
 # Usage example:
 #   sudo bash ./pkg-auto-install.sh --dry-run --verbose --assume-yes --packages ./packages.list
 # Environment variables:
-#   DETECT_PATH=/opt/sec/distro-and-pkgman-detect.sh  # path to the detector script
+#   DETECT_PATH=/usr/local/bin/HashRelay/distro-and-pkgman-detect.sh  # path to the detector script
 #
 # Security note:
 # - This script is intended for controlled lab environments. Always review package sources
@@ -27,7 +27,7 @@ set -euo pipefail
 # -o pipefail : fail a pipeline if any command fails (not just the last one)
 
 # -------------- Defaults and CLI -----------------
-DETECT_PATH="${DETECT_PATH:-/opt/sec/distro-and-pkgman-detect.sh}"
+DETECT_PATH="${DETECT_PATH:-/usr/local/bin/HashRelay/distro-and-pkgman-detect.sh}"
 # Default path to our detector; can be overridden by env var DETECT_PATH
 
 PKG_LIST="./packages.list" # Default file containing package specifications
@@ -46,7 +46,7 @@ Options:
   --assume-yes        Auto-confirm installs (e.g., -y / --noconfirm)
   -h|--help           This help
 Environment:
-  DETECT_PATH=/opt/sec/distro-and-pkgman-detect.sh (path to detector)
+  DETECT_PATH=/usr/local/bin/HashRelay/distro-and-pkgman-detect.sh (path to detector)
 Behavior:
   Invokes: sudo bash "$DETECT_PATH" kv
 USAGE
