@@ -64,3 +64,31 @@ done
 
 # Creation of the necessary path to store the different scripts
 sudo mkdir -p /usr/local/bin/HashRelay
+
+agent_selector() {
+  echo "Choose the agent you want to install on this machine:"
+  echo "  1) Client"
+  echo "  2) Server"
+
+  read -rp "Selection [1/2]: " mode
+  mode=${mode:-1}
+
+  if [[ "$mode" == "1" ]]; then
+    echo "You choose to install the hashrelay-client agent."
+    echo "Starting the installation/configuration"
+    CLIENT_AGENT=true
+  else
+    echo "You choose to install the hashrelay-server agent."
+    echo "Starting the installation/configuration"
+    SERVER_AGENT=true
+  fi
+}
+
+# Pinting the agent
+if CLIENT_AGENT=true; then
+  echo "CLIENT_AGENT=true"
+elif SERVER_AGENT=true; then
+  echo "SERVER_AGENT=true"
+else
+  echo "Cannot fond the AGENT configuration"
+fi
