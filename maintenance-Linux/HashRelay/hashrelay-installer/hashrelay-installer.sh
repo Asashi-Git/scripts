@@ -126,9 +126,23 @@ else
 fi
 
 # This fonction make the scripts inside the /usr/local/bin/HashRelay executables
-chmod_scripts() {
-  # Make the scripts inside the directory executables
-  while true; do
-    echo "Making the necessary scripts executables"
-  done
+chmod_script_recursive() {
+  local dir="/usr/local/bin/HashRelay"
+
+  [[ -d "$dir" ]] || {
+    echo "Directory not found: $dir" >&2
+    return 1
+  }
+
+  # find regular files ending with .sh, don’t follow symlinks (-P)
+  if [[ "$DRY_RUN" == true ]]; then
+    find -P "$dir" -type f -name '*.sh' -print0 |
+      xargs -0 -r -I{} printf 'DRY-RUN: chmod +x -- %q\n' "{}"
+  else
+    find -P "$dir" -type f -name '*.sh' -print0 |
+      xargs -0 -r chmod +x
+    [[ "$VERBOSE" == true ]] && echo "Made executable all *.sh under $dir (recursive)"
+  fi
 }
+
+chmod_script_recursive
