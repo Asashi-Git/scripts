@@ -108,6 +108,31 @@ agent_selector() {
 
 agent_selector
 
+# Echo the absolute, symlink-resolved path of this installer.
+installer_path() {
+  # ${BASH_SOURCE[0]} = path of this script file (reliable even if sourced)
+  # readlink -f         = resolve symlinks and make absolute (GNU coreutils; present on Arch)
+  local path
+  path=$(readlink -f -- "${BASH_SOURCE[0]}") || {
+    echo "ERROR: cannot resolve installer path." >&2
+    return 1
+  }
+  printf '%s\n' "$path"
+}
+
+# Echo just the directory that contains the installer (what you need).
+installer_dir() {
+  local path
+  path=$(installer_path) || return 1
+  LOCATION_PATH="${path%/*}" # Remove the shortest match from the end
+}
+
+installer_dir
+if [[ "$VERBOSE" == true ]]; then
+  echo "All the scripts are actually located at $LOCATION_PATH and will be moved"
+  echo "To /usr/local/bin/HashRelay/"
+fi
+
 # Moving the specifics scripts to the created directory /usr/local/bin/HashRelay
 if [[ "$CLIENT_AGENT" == true ]]; then
   if [[ "$VERBOSE" == true ]]; then
@@ -115,6 +140,7 @@ if [[ "$CLIENT_AGENT" == true ]]; then
     echo "Starting to move the client necessary scripts to the HashRelay directory"
   fi
   # Moving the client necessary scripts to the HashRelay directory
+  sudo mv "$LOCATION_PATH/Dependencies" "/usr/local/bin/HashRelay"
 elif [[ "$SERVER_AGENT" == true ]]; then
   if [[ "$VERBOSE" == true ]]; then
     echo "SERVER_AGENT=true"
@@ -177,25 +203,3 @@ chmod_script_recursive() {
 }
 
 chmod_script_recursive
-
-# Echo the absolute, symlink-resolved path of this installer.
-installer_path() {
-  # ${BASH_SOURCE[0]} = path of this script file (reliable even if sourced)
-  # readlink -f         = resolve symlinks and make absolute (GNU coreutils; present on Arch)
-  local path
-  path=$(readlink -f -- "${BASH_SOURCE[0]}") || {
-    echo "ERROR: cannot resolve installer path." >&2
-    return 1
-  }
-  printf '%s\n' "$path"
-}
-
-# Echo just the directory that contains the installer (what you need).
-installer_dir() {
-  local path
-  path=$(installer_path) || return 1
-  LOCATION_PATH="${path%/*}" # Remove the shortest match from the end
-}
-
-installer_dir
-echo "Your path is $LOCATION_PATH"
