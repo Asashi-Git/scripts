@@ -8,6 +8,12 @@
 # scripts executables and delete the unnecessary scripts and vice versa.
 #
 
+# Ensure we are root
+if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+  echo "This script must be run as root (use sudo)." >&2
+  exit 1
+fi
+
 CLIENT_AGENT=false # This variable will be changed when the user choose his version to insall.
 SERVER_AGENT=false # This variable will be changed when the user choose his version to install.
 
