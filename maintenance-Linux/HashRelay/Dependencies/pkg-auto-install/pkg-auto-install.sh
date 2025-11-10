@@ -16,7 +16,7 @@ have() { command -v -- "$1" >/dev/null 2>&1; }
 
 # ---------- configuration ----------
 # Path to your first script (distro_and_pkgman_detect.sh). Can be overridden via env.
-DETECT_PATH="${DETECT_PATH:-./distro_and_pkgman_detect.sh}"
+DETECT_PATH="${DETECT_PATH:-./../distro-and-pkgman-detect/distro-and-pkgman-detect.sh}"
 
 # Default package list file
 PKG_FILE="packages.list"
