@@ -63,7 +63,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Creation of the necessary path to store the different scripts
+echo "Creation of all the necessary directory"
 sudo mkdir -p /usr/local/bin/HashRelay
+echo "directory /usr/local/bin/HashRelay correctly created"
 
 agent_selector() {
   echo "Choose the agent you want to install on this machine:"
@@ -84,11 +86,15 @@ agent_selector() {
   fi
 }
 
+agent_selector
+
 # Pinting the agent
-if CLIENT_AGENT=true; then
+if [[ "$CLIENT_AGENT" == true ]]; then
   echo "CLIENT_AGENT=true"
-elif SERVER_AGENT=true; then
+elif [[ "$SERVER_AGENT" == true ]]; then
   echo "SERVER_AGENT=true"
 else
-  echo "Cannot fond the AGENT configuration"
+  echo "Cannot find the agent configuration."
+  echo "Choose an agent between server and client"
+  agent_selector
 fi
