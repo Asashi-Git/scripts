@@ -2,7 +2,7 @@
 # Author: Decarnelle Samuel
 # Detect Linux distribution and enumerate installed package managers.
 # Works on most Linux distros and containers. No root required.
-# /opt/sec/distro-and-pkgman-detect.sh
+# This script neet to be moved to /opt/sec/distro-and-pkgman-detect.sh
 
 set -euo pipefail
 
