@@ -27,7 +27,7 @@ set -euo pipefail
 # -o pipefail : fail a pipeline if any command fails (not just the last one)
 
 # -------------- Defaults and CLI -----------------
-DETECT_PATH="${DETECT_PATH:-/usr/local/bin/HashRelay/distro-and-pkgman-detect.sh}"
+DETECT_PATH="${DETECT_PATH:-/usr/local/bin/HashRelay/distro-and-pkgman-detect/distro-and-pkgman-detect.sh}"
 # Default path to our detector; can be overridden by env var DETECT_PATH
 
 PKG_LIST="./packages.list" # Default file containing package specifications

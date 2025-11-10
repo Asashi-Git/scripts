@@ -4,7 +4,7 @@
 # Author: Decarnelle Samuel
 #
 # Scope: Works on most Linux distros and containers. No root required.
-# Install path: /usr/local/bin/HashRelay/distro-and-pkgman-detect.sh
+# Install path: /usr/local/bin/HashRelay/distro-and-pkgman-detect/distro-and-pkgman-detect.sh
 
 set -euo pipefail
 # -e : exit immediately on any error
