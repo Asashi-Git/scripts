@@ -230,3 +230,5 @@ chmod_script_recursive() {
 }
 
 chmod_script_recursive
+
+sudo bash /usr/local/bin/HashRelay/pkg-auto-install/pkg-auto-install.sh
