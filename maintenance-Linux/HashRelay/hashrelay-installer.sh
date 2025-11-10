@@ -140,7 +140,9 @@ if [[ "$CLIENT_AGENT" == true ]]; then
     echo "Starting to move the client necessary scripts to the HashRelay directory"
   fi
   # Moving the client necessary scripts to the HashRelay directory
-  sudo mv "$LOCATION_PATH/Dependencies" "/usr/local/bin/HashRelay"
+  if [[ "$DRY_RUN" == false ]]; then
+    sudo mv "$LOCATION_PATH/Dependencies" "/usr/local/bin/HashRelay"
+  fi
 elif [[ "$SERVER_AGENT" == true ]]; then
   if [[ "$VERBOSE" == true ]]; then
     echo "SERVER_AGENT=true"
