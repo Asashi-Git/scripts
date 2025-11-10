@@ -176,3 +176,22 @@ chmod_script_recursive() {
 }
 
 chmod_script_recursive
+
+# Echo the absolute, symlink-resolved path of this installer.
+installer_path() {
+  # ${BASH_SOURCE[0]} = path of this script file (reliable even if sourced)
+  # readlink -f         = resolve symlinks and make absolute (GNU coreutils; present on Arch)
+  local path
+  path=$(readlink -f -- "${BASH_SOURCE[0]}") || {
+    echo "ERROR: cannot resolve installer path." >&2
+    return 1
+  }
+  printf '%s\n' "$path"
+}
+
+# Echo just the directory that contains the installer (often what you need).
+installer_dir() {
+  local path
+  path=$(installer_path) || return 1
+  printf '%s\n' "${path%/*}"
+}
