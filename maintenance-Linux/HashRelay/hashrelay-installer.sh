@@ -141,13 +141,38 @@ if [[ "$CLIENT_AGENT" == true ]]; then
   fi
   # Moving the client necessary scripts to the HashRelay directory
   if [[ "$DRY_RUN" == false ]]; then
-    sudo mv "$LOCATION_PATH/Dependencies" "/usr/local/bin/HashRelay"
+    #sudo mv "$LOCATION_PATH/Dependencies" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/backups-manager" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/contact-ip" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/delete-manager" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/distro-and-pkgman-detect" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/hash-printer" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/hashrelay-client" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/pkg-auto-install" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/prob-viewer" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/sender" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/ssh-configuration-manager" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/ufw-configuration-manager" "/usr/local/bin/HashRelay"
+    sudo rm -rf "$LOCATION_PATH/Dependencies"
   fi
 elif [[ "$SERVER_AGENT" == true ]]; then
   if [[ "$VERBOSE" == true ]]; then
     echo "SERVER_AGENT=true"
     echo "Starting to move the server necessary scripts to the HashRelay directory"
-    # Moving the server necessary scripts to the HashRelay directory
+  fi
+  if [[ "$DRY_RUN" == false ]]; then
+    sudo mv "$LOCATION_PATH/Dependencies/backups-manager" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/contact-ip" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/delete-manager" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/distro-and-pkgman-detect" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/hash-printer" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/hashrelay-server" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/pkg-auto-install" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/prob-viewer" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/receiver" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/ssh-configuration-manager" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/ufw-configuration-manager" "/usr/local/bin/HashRelay"
+    sudo rm -rf "$LOCATION_PATH/Dependencies"
   fi
 else
   echo "Cannot find the agent configuration (This should not happen)."
