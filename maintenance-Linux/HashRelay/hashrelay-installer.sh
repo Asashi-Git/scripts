@@ -195,3 +195,5 @@ installer_dir() {
   path=$(installer_path) || return 1
   printf '%s\n' "${path%/*}"
 }
+
+installer_dir
