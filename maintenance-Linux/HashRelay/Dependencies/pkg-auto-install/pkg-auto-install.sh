@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # Purpose: Auto-install a package set across Linux distros using your detector.
 # Author: Decarnelle Samuel
-# Safety: Only use in your isolated lab; review commands before running.
 # Usage:
 #   sudo bash ./pkg-auto-install.sh --dry-run --verbose --assume-yes --packages ./packages.list
 # Env:
-#   DETECT_PATH=/opt/sec/distro-and-pkgman-detect.sh (default below)
+#   DETECT_PATH=/opt/sec/distro-and-pkgman-detect.sh
 
 set -euo pipefail
 
@@ -73,29 +72,21 @@ run() {
     eval "$@"
   fi
 }
-require() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    log "[!] Required command not found: $1"
-    exit 1
-  fi
-}
 
 # -------------- Detector invocation -----------------
 run_detector() {
-  # Intentionally via sudo bash as requested
   if [[ ! -x "$DETECT_PATH" && ! -f "$DETECT_PATH" ]]; then
     log "[!] Detector not found at $DETECT_PATH"
     exit 1
   fi
   vlog "[*] Running detector (sudo bash): $DETECT_PATH kv"
-  # Use a subshell execution but capture output into an array cleanly
   sudo bash "$DETECT_PATH" kv
 }
 
-# Capture detector output (array-safe)
+# Capture detector output
 mapfile -t DET_OUT < <(run_detector)
 
-# Parse in current shell (fixes prior subshell bug)
+# Parse in current shell
 declare -Ag KV=()
 for line in "${DET_OUT[@]}"; do
   [[ -z "$line" || "$line" =~ ^\# ]] && continue
@@ -106,42 +97,39 @@ for line in "${DET_OUT[@]}"; do
   fi
 done
 
-# Preview for troubleshooting
+# Preview
 if [[ "$VERBOSE" == "true" ]]; then
   for k in DistroPretty DistroID DistroLike DistroVersion "Package-Managers" OSTree WSL Container; do
-    printf '[*] %s=%s\n' "$k" "${KV[$k]:-}" >&2
+    printf '[*] %s=%s\n' "$k" "${KV["$k"]:-}" >&2
   done
 fi
 
 # Validate detector essentials
 DISTRO_ID="${KV[DistroID]:-unknown}"
-[[ "$DISTRO_ID" == "unknown" || -z "$DISTRO_ID" ]] && {
+if [[ -z "$DISTRO_ID" || "$DISTRO_ID" == "unknown" ]]; then
   log "[!] Could not determine DistroID."
   for k in DistroPretty DistroID DistroLike DistroVersion WSL Container; do
-    log "    detector preview: $k=${KV[$k]:-}"
+    log "    detector preview: $k=${KV["$k"]:-}"
   done
   exit 1
-}
+fi
 
-PM_CSV="${KV[Package - Managers]:-}"
+# IMPORTANT: quote hyphenated key
+PM_CSV="${KV["Package-Managers"]:-}"
 if [[ -z "$PM_CSV" ]]; then
   log "[!] Detector returned no Package-Managers."
   exit 1
 fi
 
 # -------------- Package manager selection -----------------
-# Convert CSV to array
 IFS=',' read -r -a PMS <<<"$PM_CSV"
-
-# Rank PMs (first viable wins). Tune order if you like.
 PM_PREF=(pacman apt-get apt dnf zypper xbps-install emerge apk nix-env brew rpm-ostree)
 PRIMARY_PM=""
 
-# Normalize names provided by detector just in case
 norm_pm() {
   case "$1" in
   apt-get | apt) echo "apt-get" ;;
-  dnf5) echo "dnf" ;; # future-proof
+  dnf5) echo "dnf" ;;
   rpm-ostree | rpm_ostree) echo "rpm-ostree" ;;
   pacman | zypper | xbps-install | emerge | apk | nix-env | brew | dnf) echo "$1" ;;
   *) echo "$1" ;;
@@ -175,33 +163,21 @@ if [[ ! -r "$PKG_LIST" ]]; then
   exit 1
 fi
 
-# Each line supports:
-#   pkgname
-#   pkgname pmA=override1 pmB="override with spaces"
-#   # comments allowed
 declare -a WANT_PKGS=()
-
-# Read respecting quotes
 while IFS= read -r raw || [[ -n "$raw" ]]; do
-  # Trim
   line="${raw#"${raw%%[![:space:]]*}"}"
   line="${line%"${line##*[![:space:]]}"}"
   [[ -z "$line" || "$line" =~ ^# ]] && continue
-
-  # Split tokens while respecting quotes
-  # shellcheck disable=SC2206
   tokens=($line)
   base="${tokens[0]}"
   override=""
 
-  # Collect per-PM overrides
   for ((i = 1; i < ${#tokens[@]}; i++)); do
     tok="${tokens[$i]}"
     if [[ "$tok" =~ ^([A-Za-z0-9._-]+)=(.*)$ ]]; then
       k="${BASH_REMATCH[1]}"
       v="${BASH_REMATCH[2]}"
       k="$(norm_pm "$k")"
-      # Strip optional quotes around value
       v="${v%\"}"
       v="${v#\"}"
       v="${v%\'}"
@@ -213,8 +189,6 @@ while IFS= read -r raw || [[ -n "$raw" ]]; do
   done
 
   if [[ -n "$override" ]]; then
-    # Allow multiple space-separated names in override
-    # shellcheck disable=SC2206
     arr=($override)
     WANT_PKGS+=("${arr[@]}")
   else
@@ -222,7 +196,6 @@ while IFS= read -r raw || [[ -n "$raw" ]]; do
   fi
 done <"$PKG_LIST"
 
-# Deduplicate packages (simple)
 declare -A SEEN=()
 declare -a FINAL_PKGS=()
 for p in "${WANT_PKGS[@]}"; do
@@ -243,9 +216,9 @@ yes_flag() {
   xbps-install) $ASSUME_YES && printf -- "-y" ;;
   emerge) $ASSUME_YES && printf -- "--ask=n" ;;
   apk) $ASSUME_YES && printf -- "-y" ;;
-  nix-env) ;; # nix often doesn't need a -y
+  nix-env) ;;
   brew) $ASSUME_YES && printf -- "-y" || true ;;
-  rpm-ostree) ;; # layered commits are transactional, no -y
+  rpm-ostree) ;;
   esac
 }
 
@@ -258,9 +231,9 @@ do_update() {
   xbps-install) run "sudo xbps-install -S" ;;
   emerge) run "sudo emaint sync -a || sudo emerge --sync" ;;
   apk) run "sudo apk update" ;;
-  nix-env) : ;; # not needed
+  nix-env) : ;;
   brew) run "brew update" ;;
-  rpm-ostree) : ;; # catalog managed separately
+  rpm-ostree) : ;;
   esac
 }
 
@@ -268,38 +241,20 @@ do_install() {
   local yflag
   yflag="$(yes_flag || true)"
   case "$PRIMARY_PM" in
-  pacman)
-    run "sudo pacman -S ${yflag:-} ${FINAL_PKGS[*]}"
-    ;;
-  apt-get)
-    run "sudo apt-get install ${yflag:-} ${FINAL_PKGS[*]}"
-    ;;
-  dnf)
-    run "sudo dnf install ${yflag:-} ${FINAL_PKGS[*]}"
-    ;;
-  zypper)
-    run "sudo zypper install ${yflag:-} ${FINAL_PKGS[*]}"
-    ;;
-  xbps-install)
-    run "sudo xbps-install ${yflag:-} ${FINAL_PKGS[*]}"
-    ;;
-  emerge)
-    run "sudo emerge ${FINAL_PKGS[*]}"
-    ;;
-  apk)
-    run "sudo apk add ${FINAL_PKGS[*]}"
-    ;;
+  pacman) run "sudo pacman -S ${yflag:-} ${FINAL_PKGS[*]}" ;;
+  apt-get) run "sudo apt-get install ${yflag:-} ${FINAL_PKGS[*]}" ;;
+  dnf) run "sudo dnf install ${yflag:-} ${FINAL_PKGS[*]}" ;;
+  zypper) run "sudo zypper install ${yflag:-} ${FINAL_PKGS[*]}" ;;
+  xbps-install) run "sudo xbps-install ${yflag:-} ${FINAL_PKGS[*]}" ;;
+  emerge) run "sudo emerge ${FINAL_PKGS[*]}" ;;
+  apk) run "sudo apk add ${FINAL_PKGS[*]}" ;;
   nix-env)
-    # Nix installs are per-user by default; consider flakes for reproducibility
     for pkg in "${FINAL_PKGS[@]}"; do
       run "nix-env -iA nixpkgs.${pkg}"
     done
     ;;
-  brew)
-    run "brew install ${FINAL_PKGS[*]}"
-    ;;
+  brew) run "brew install ${FINAL_PKGS[*]}" ;;
   rpm-ostree)
-    # Layer and reboot is typically required to apply
     run "sudo rpm-ostree install ${FINAL_PKGS[*]}"
     log "[i] rpm-ostree changes may require a reboot."
     ;;
