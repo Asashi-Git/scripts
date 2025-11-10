@@ -125,23 +125,53 @@ else
   exit 1
 fi
 
-# This fonction make the scripts inside the /usr/local/bin/HashRelay executables
+# Recursively make every *.sh file under /usr/local/bin/HashRelay executable.
+# - Works safely with spaces/newlines in filenames (NUL-delimited pipeline).
+# - Honors global flags: VERBOSE (extra logs) and DRY_RUN (show, don’t do).
 chmod_script_recursive() {
+  # Directory containing your scripts
   local dir="/usr/local/bin/HashRelay"
 
-  [[ -d "$dir" ]] || {
+  # Ensure target directory exists before proceeding
+  if [[ ! -d "$dir" ]]; then
     echo "Directory not found: $dir" >&2
     return 1
-  }
+  fi
 
-  # find regular files ending with .sh, don’t follow symlinks (-P)
+  # When DRY_RUN is enabled, only print what would be executed.
   if [[ "$DRY_RUN" == true ]]; then
+    # find:
+    #   -P     : do not follow symlinks (safer in installers)
+    #   -type f: only regular files
+    #   -name '*.sh': files ending with .sh
+    #   -print0: separate results with NUL (safe for any filename)
+    # xargs:
+    #   -0     : read NUL-separated input
+    #   -r     : do nothing if no input (avoid running chmod with no args)
+    #   -I{}   : replace token {} in the following printf command
     find -P "$dir" -type f -name '*.sh' -print0 |
       xargs -0 -r -I{} printf 'DRY-RUN: chmod +x -- %q\n' "{}"
-  else
-    find -P "$dir" -type f -name '*.sh' -print0 |
-      xargs -0 -r chmod +x
-    [[ "$VERBOSE" == true ]] && echo "Made executable all *.sh under $dir (recursive)"
+
+    # Optional: also print a summary count in dry-run mode
+    if [[ "$VERBOSE" == true ]]; then
+      local count
+      count=$(find -P "$dir" -type f -name '*.sh' -print0 | tr -cd '\0' | wc -c)
+      echo "DRY-RUN summary: ${count} script(s) would be made executable under $dir"
+    fi
+    return 0
+  fi
+
+  # Real run: apply +x to all matching files, safely.
+  # We use a two-step pipeline for both correctness and speed.
+  # Note: chmod +x preserves existing r/w permissions and just adds execute bits.
+  find -P "$dir" -type f -name '*.sh' -print0 |
+    xargs -0 -r chmod +x
+
+  # Optional verbose summary after changes
+  if [[ "$VERBOSE" == true ]]; then
+    local changed
+    changed=$(find -P "$dir" -type f -name '*.sh' -perm -u=x -print0 | tr -cd '\0' | wc -c)
+    echo "Made executable: ${changed} script(s) under $dir"
   fi
 }
 
