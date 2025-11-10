@@ -1,64 +1,53 @@
 #!/usr/bin/env bash
+# Purpose: Auto-install a package set across Linux distros using your detector.
 # Author: Decarnelle Samuel
-#
-# Auto-install packages based on detected distro/PMs.
-# This version always runs a detector script located at DETECT_PATH.
-# - Reads key=value lines from the detector output
-# - Chooses a primary package manager
-# - Installs packages from a list with optional per-manager overrides
-# - Supports --dry-run and --assume-yes for non-interactive usage
-#
-# Use inside isolated lab VMs/hosts only.
+# Safety: Only use in your isolated lab; review commands before running.
+# Usage:
+#   sudo bash ./pkg-auto-install.sh --dry-run --verbose --assume-yes --packages ./packages.list
+# Env:
+#   DETECT_PATH=/opt/sec/distro-and-pkgman-detect.sh (default below)
 
 set -euo pipefail
 
-have() { command -v -- "$1" >/dev/null 2>&1; }
-
-# ---------- configuration ----------
-# Path to your first script (distro_and_pkgman_detect.sh). Can be overridden via env.
-DETECT_PATH="${DETECT_PATH:-./../distro-and-pkgman-detect/distro-and-pkgman-detect.sh}"
-
-# Default package list file
-PKG_FILE="packages.list"
-
-# Flags
-DRY_RUN="false"
-ASSUME_YES="false"
-VERBOSE="true"
+# -------------- Defaults and CLI -----------------
+DETECT_PATH="${DETECT_PATH:-/opt/sec/distro-and-pkgman-detect.sh}"
+PKG_LIST="./packages.list"
+DRY_RUN=false
+VERBOSE=false
+ASSUME_YES=false
 
 usage() {
-  cat <<'EOF'
-Usage: pkg_auto_install.sh [options]
-  --pkg-file FILE   Package list file (default: packages.list)
-  --dry-run         Show commands only (do not execute)
-  --assume-yes      Non-interactive mode (-y/--noconfirm, etc.)
-  --quiet           Less output
-  -h|--help         This help
-
+  cat <<'USAGE'
+pkg-auto-install.sh
+Options:
+  --packages FILE     Path to packages list (default: ./packages.list)
+  --dry-run           Show commands without executing
+  --verbose           Extra logging
+  --assume-yes        Auto-confirm installs (e.g., -y / --noconfirm)
+  -h|--help           This help
 Environment:
-  DETECT_PATH=/path/to/distro_and_pkgman_detect.sh
-Examples:
-  DETECT_PATH=./distro_and_pkgman_detect.sh ./pkg_auto_install.sh --assume-yes
-  ./pkg_auto_install.sh --dry-run
-EOF
+  DETECT_PATH=/opt/sec/distro-and-pkgman-detect.sh (path to detector)
+Behavior:
+  Invokes: sudo bash "$DETECT_PATH" kv
+USAGE
 }
 
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
-  --pkg-file)
-    PKG_FILE="$2"
+  --packages)
+    PKG_LIST="$2"
     shift 2
     ;;
   --dry-run)
-    DRY_RUN="true"
+    DRY_RUN=true
+    shift
+    ;;
+  --verbose)
+    VERBOSE=true
     shift
     ;;
   --assume-yes)
-    ASSUME_YES="true"
-    shift
-    ;;
-  --quiet)
-    VERBOSE="false"
+    ASSUME_YES=true
     shift
     ;;
   -h | --help)
@@ -66,225 +55,269 @@ while [ $# -gt 0 ]; do
     exit 0
     ;;
   *)
-    echo "Unknown option: $1" >&2
+    echo "[!] Unknown arg: $1"
     usage
     exit 1
     ;;
   esac
 done
 
-# ---------- run detector ----------
-[ -x "$DETECT_PATH" ] || {
-  echo "[!] Detector not found or not executable: $DETECT_PATH" >&2
+# -------------- Helpers -----------------
+log() { printf '%s\n' "$*" >&2; }
+vlog() { [[ "$VERBOSE" == "true" ]] && log "$*"; }
+run() {
+  if [[ "$DRY_RUN" == "true" ]]; then
+    printf '[DRY-RUN] %s\n' "$*"
+  else
+    printf '[RUN] %s\n' "$*"
+    eval "$@"
+  fi
+}
+require() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    log "[!] Required command not found: $1"
+    exit 1
+  fi
+}
+
+# -------------- Detector invocation -----------------
+run_detector() {
+  # Intentionally via sudo bash as requested
+  if [[ ! -x "$DETECT_PATH" && ! -f "$DETECT_PATH" ]]; then
+    log "[!] Detector not found at $DETECT_PATH"
+    exit 1
+  fi
+  vlog "[*] Running detector (sudo bash): $DETECT_PATH kv"
+  # Use a subshell execution but capture output into an array cleanly
+  sudo bash "$DETECT_PATH" kv
+}
+
+# Capture detector output (array-safe)
+mapfile -t DET_OUT < <(run_detector)
+
+# Parse in current shell (fixes prior subshell bug)
+declare -Ag KV=()
+for line in "${DET_OUT[@]}"; do
+  [[ -z "$line" || "$line" =~ ^\# ]] && continue
+  if [[ "$line" =~ ^([A-Za-z0-9._-]+)=(.*)$ ]]; then
+    key="${BASH_REMATCH[1]}"
+    val="${BASH_REMATCH[2]}"
+    KV["$key"]="$val"
+  fi
+done
+
+# Preview for troubleshooting
+if [[ "$VERBOSE" == "true" ]]; then
+  for k in DistroPretty DistroID DistroLike DistroVersion "Package-Managers" OSTree WSL Container; do
+    printf '[*] %s=%s\n' "$k" "${KV[$k]:-}" >&2
+  done
+fi
+
+# Validate detector essentials
+DISTRO_ID="${KV[DistroID]:-unknown}"
+[[ "$DISTRO_ID" == "unknown" || -z "$DISTRO_ID" ]] && {
+  log "[!] Could not determine DistroID."
+  for k in DistroPretty DistroID DistroLike DistroVersion WSL Container; do
+    log "    detector preview: $k=${KV[$k]:-}"
+  done
   exit 1
 }
-[ "$VERBOSE" = "true" ] && echo "[*] Running detector at: $DETECT_PATH" >&2
 
-declare -A KV
-read_kv() {
-  local line k v
-  while IFS= read -r line; do
-    [[ -z "$line" || "$line" =~ ^\# ]] && continue
-    if [[ "$line" =~ ^([A-Za-z0-9_]+)=(.*)$ ]]; then
+PM_CSV="${KV[Package - Managers]:-}"
+if [[ -z "$PM_CSV" ]]; then
+  log "[!] Detector returned no Package-Managers."
+  exit 1
+fi
+
+# -------------- Package manager selection -----------------
+# Convert CSV to array
+IFS=',' read -r -a PMS <<<"$PM_CSV"
+
+# Rank PMs (first viable wins). Tune order if you like.
+PM_PREF=(pacman apt-get apt dnf zypper xbps-install emerge apk nix-env brew rpm-ostree)
+PRIMARY_PM=""
+
+# Normalize names provided by detector just in case
+norm_pm() {
+  case "$1" in
+  apt-get | apt) echo "apt-get" ;;
+  dnf5) echo "dnf" ;; # future-proof
+  rpm-ostree | rpm_ostree) echo "rpm-ostree" ;;
+  pacman | zypper | xbps-install | emerge | apk | nix-env | brew | dnf) echo "$1" ;;
+  *) echo "$1" ;;
+  esac
+}
+
+declare -A HAVE_PM=()
+for pm in "${PMS[@]}"; do
+  n="$(norm_pm "$pm")"
+  if command -v "$n" >/dev/null 2>&1; then
+    HAVE_PM["$n"]=1
+  fi
+done
+
+for pref in "${PM_PREF[@]}"; do
+  if [[ -n "${HAVE_PM[$pref]:-}" ]]; then
+    PRIMARY_PM="$pref"
+    break
+  fi
+done
+
+if [[ -z "$PRIMARY_PM" ]]; then
+  log "[!] No supported package manager found among: ${PMS[*]}"
+  exit 1
+fi
+vlog "[*] DistroID=$DISTRO_ID; Primary PM=$PRIMARY_PM; All PMs=(${PMS[*]})"
+
+# -------------- Package list parsing -----------------
+if [[ ! -r "$PKG_LIST" ]]; then
+  log "[!] Package list not readable: $PKG_LIST"
+  exit 1
+fi
+
+# Each line supports:
+#   pkgname
+#   pkgname pmA=override1 pmB="override with spaces"
+#   # comments allowed
+declare -a WANT_PKGS=()
+
+# Read respecting quotes
+while IFS= read -r raw || [[ -n "$raw" ]]; do
+  # Trim
+  line="${raw#"${raw%%[![:space:]]*}"}"
+  line="${line%"${line##*[![:space:]]}"}"
+  [[ -z "$line" || "$line" =~ ^# ]] && continue
+
+  # Split tokens while respecting quotes
+  # shellcheck disable=SC2206
+  tokens=($line)
+  base="${tokens[0]}"
+  override=""
+
+  # Collect per-PM overrides
+  for ((i = 1; i < ${#tokens[@]}; i++)); do
+    tok="${tokens[$i]}"
+    if [[ "$tok" =~ ^([A-Za-z0-9._-]+)=(.*)$ ]]; then
       k="${BASH_REMATCH[1]}"
       v="${BASH_REMATCH[2]}"
-      KV["$k"]="$v"
-    fi
-  done
-}
-
-# Capture and parse detector output
-mapfile -t DET_OUT < <("$DETECT_PATH")
-printf '%s\n' "${DET_OUT[@]}" | read_kv
-
-DistroID="${KV[DistroID]:-${KV[ID]:-unknown}}"
-PM_CSV="${KV[Package - Managers]:-}"
-OSTREE="${KV[OSTree]:-${KV[OSTREE]:-false}}"
-
-if [ "$DistroID" = "unknown" ] || [ -z "$PM_CSV" ]; then
-  echo "[!] Could not determine DistroID or Package-Managers from detector output." >&2
-  echo "[i] Detector output preview:" >&2
-  printf '    %s\n' "${DET_OUT[@]:0:10}" >&2
-  exit 1
-fi
-
-IFS=',' read -r -a PM_LIST <<<"$PM_CSV"
-
-# ---------- choose primary package manager ----------
-choose_primary_pm() {
-  local id="$1"
-  shift
-  local -a pms=("$@")
-  local prefer=()
-
-  case "$id" in
-  debian | ubuntu | linuxmint | elementary | pop | kali | parrot | raspbian) prefer=(apt apt-get aptitude) ;;
-  fedora | rhel | centos | rocky | almalinux | oracle | ol)
-    if [ "${OSTREE,,}" = "true" ]; then prefer=(rpm-ostree); else prefer=(dnf microdnf yum); fi
-    ;;
-  opensuse* | sles | sle) prefer=(zypper) ;;
-  arch | manjaro | endeavouros | arco | garuda | artix) prefer=(pacman yay paru trizen pikaur) ;;
-  alpine) prefer=(apk) ;;
-  gentoo) prefer=(emerge) ;;
-  void) prefer=(xbps-install) ;;
-  slackware) prefer=(slackpkg installpkg) ;;
-  solus) prefer=(eopkg) ;;
-  clear-linux | clearlinux) prefer=(swupd) ;;
-  photon) prefer=(tdnf) ;;
-  nixos | nix | nixos-small) prefer=(nix-env nix) ;;
-  *) prefer=("${pms[@]}" apt dnf zypper pacman apk xbps-install emerge eopkg swupd tdnf nix-env rpm-ostree) ;;
-  esac
-
-  for want in "${prefer[@]}"; do
-    for have_pm in "${pms[@]}"; do
-      if [ "$want" = "$have_pm" ]; then
-        echo "$want"
-        return 0
+      k="$(norm_pm "$k")"
+      # Strip optional quotes around value
+      v="${v%\"}"
+      v="${v#\"}"
+      v="${v%\'}"
+      v="${v#\'}"
+      if [[ "$k" == "$PRIMARY_PM" ]]; then
+        override="$v"
       fi
-    done
-  done
-  echo "${pms[0]}"
-}
-
-PRIMARY_PM="$(choose_primary_pm "$DistroID" "${PM_LIST[@]}")"
-[ "$VERBOSE" = "true" ] && echo "[*] DistroID=$DistroID | Primary manager=$PRIMARY_PM" >&2
-
-# ---------- read package file ----------
-[ -r "$PKG_FILE" ] || {
-  echo "[!] Package file not found: $PKG_FILE" >&2
-  exit 1
-}
-
-declare -A OVERRIDES # key: "generic|manager" -> real name
-declare -a GENERIC_PKGS=()
-
-while IFS= read -r line; do
-  line="${line%%#*}"
-  line="$(echo "$line" | xargs || true)"
-  [ -z "$line" ] && continue
-  read -r generic rest <<<"$line"
-  [ -z "$generic" ] && continue
-  GENERIC_PKGS+=("$generic")
-  for tok in $rest; do
-    if [[ "$tok" =~ ^([A-Za-z0-9._+-]+)=(.+)$ ]]; then
-      mgr="${BASH_REMATCH[1]}"
-      val="${BASH_REMATCH[2]}"
-      OVERRIDES["$generic|$mgr"]="$val"
     fi
   done
-done <"$PKG_FILE"
 
-resolve_pkg_name() {
-  local generic="$1" mgr="$2"
-  local key="$generic|$mgr"
-  if [[ -n "${OVERRIDES[$key]:-}" ]]; then printf '%s' "${OVERRIDES[$key]}"; else printf '%s' "$generic"; fi
+  if [[ -n "$override" ]]; then
+    # Allow multiple space-separated names in override
+    # shellcheck disable=SC2206
+    arr=($override)
+    WANT_PKGS+=("${arr[@]}")
+  else
+    WANT_PKGS+=("$base")
+  fi
+done <"$PKG_LIST"
+
+# Deduplicate packages (simple)
+declare -A SEEN=()
+declare -a FINAL_PKGS=()
+for p in "${WANT_PKGS[@]}"; do
+  [[ -z "$p" ]] && continue
+  if [[ -z "${SEEN[$p]:-}" ]]; then
+    SEEN["$p"]=1
+    FINAL_PKGS+=("$p")
+  fi
+done
+
+# -------------- Command builder per PM -----------------
+yes_flag() {
+  case "$PRIMARY_PM" in
+  pacman) $ASSUME_YES && printf -- "--noconfirm" ;;
+  apt-get) $ASSUME_YES && printf -- "-y" ;;
+  dnf) $ASSUME_YES && printf -- "-y" ;;
+  zypper) $ASSUME_YES && printf -- "-y" ;;
+  xbps-install) $ASSUME_YES && printf -- "-y" ;;
+  emerge) $ASSUME_YES && printf -- "--ask=n" ;;
+  apk) $ASSUME_YES && printf -- "-y" ;;
+  nix-env) ;; # nix often doesn't need a -y
+  brew) $ASSUME_YES && printf -- "-y" || true ;;
+  rpm-ostree) ;; # layered commits are transactional, no -y
+  esac
 }
 
-# ---------- non-interactive flags per manager ----------
-YESFLAG=""
-case "$PRIMARY_PM" in
-apt | apt-get | aptitude) YESFLAG=$([ "$ASSUME_YES" = "true" ] && echo "-y" || echo "") ;;
-dnf | microdnf | yum) YESFLAG=$([ "$ASSUME_YES" = "true" ] && echo "-y" || echo "") ;;
-zypper) YESFLAG=$([ "$ASSUME_YES" = "true" ] && echo "--non-interactive" || echo "") ;;
-pacman) YESFLAG=$([ "$ASSUME_YES" = "true" ] && echo "--noconfirm" || echo "") ;;
-apk) YESFLAG=$([ "$ASSUME_YES" = "true" ] && echo "--no-interactive" || echo "") ;;
-xbps-install) YESFLAG=$([ "$ASSUME_YES" = "true" ] && echo "-y" || echo "") ;;
-emerge) YESFLAG=$([ "$ASSUME_YES" = "true" ] && echo "--ask=n" || echo "") ;;
-eopkg) YESFLAG=$([ "$ASSUME_YES" = "true" ] && echo "-y" || echo "") ;;
-swupd) YESFLAG=$([ "$ASSUME_YES" = "true" ] && echo "--assume=yes" || echo "") ;;
-tdnf) YESFLAG=$([ "$ASSUME_YES" = "true" ] && echo "-y" || echo "") ;;
-rpm-ostree) YESFLAG=$([ "$ASSUME_YES" = "true" ] && echo "-y" || echo "") ;;
-nix-env | nix) YESFLAG="" ;;
-*) YESFLAG="" ;;
-esac
+do_update() {
+  case "$PRIMARY_PM" in
+  pacman) run "sudo pacman -Sy" ;;
+  apt-get) run "sudo apt-get update" ;;
+  dnf) run "sudo dnf makecache" ;;
+  zypper) run "sudo zypper refresh" ;;
+  xbps-install) run "sudo xbps-install -S" ;;
+  emerge) run "sudo emaint sync -a || sudo emerge --sync" ;;
+  apk) run "sudo apk update" ;;
+  nix-env) : ;; # not needed
+  brew) run "brew update" ;;
+  rpm-ostree) : ;; # catalog managed separately
+  esac
+}
 
-build_cmds() {
-  local mgr="$1"
-  shift
-  local -a pkgs=("$@")
-  case "$mgr" in
-  apt | apt-get | aptitude)
-    echo "sudo $mgr update"
-    echo "sudo $mgr install $YESFLAG ${pkgs[*]}"
+do_install() {
+  local yflag
+  yflag="$(yes_flag || true)"
+  case "$PRIMARY_PM" in
+  pacman)
+    run "sudo pacman -S ${yflag:-} ${FINAL_PKGS[*]}"
     ;;
-  dnf | microdnf | yum)
-    echo "sudo $mgr makecache"
-    echo "sudo $mgr install $YESFLAG ${pkgs[*]}"
+  apt-get)
+    run "sudo apt-get install ${yflag:-} ${FINAL_PKGS[*]}"
+    ;;
+  dnf)
+    run "sudo dnf install ${yflag:-} ${FINAL_PKGS[*]}"
     ;;
   zypper)
-    echo "sudo zypper refresh"
-    echo "sudo zypper install $YESFLAG ${pkgs[*]}"
-    ;;
-  pacman)
-    echo "sudo pacman -Sy"
-    echo "sudo pacman -S $YESFLAG ${pkgs[*]}"
-    ;;
-  apk)
-    echo "sudo apk update"
-    echo "sudo apk add ${pkgs[*]}"
+    run "sudo zypper install ${yflag:-} ${FINAL_PKGS[*]}"
     ;;
   xbps-install)
-    echo "sudo xbps-install -S"
-    echo "sudo xbps-install $YESFLAG ${pkgs[*]}"
+    run "sudo xbps-install ${yflag:-} ${FINAL_PKGS[*]}"
     ;;
   emerge)
-    echo "sudo emerge --sync"
-    echo "sudo emerge ${pkgs[*]}"
+    run "sudo emerge ${FINAL_PKGS[*]}"
     ;;
-  eopkg)
-    echo "sudo eopkg update-repo"
-    echo "sudo eopkg install $YESFLAG ${pkgs[*]}"
+  apk)
+    run "sudo apk add ${FINAL_PKGS[*]}"
     ;;
-  swupd)
-    echo "sudo swupd update"
-    echo "sudo swupd bundle-add ${pkgs[*]}"
+  nix-env)
+    # Nix installs are per-user by default; consider flakes for reproducibility
+    for pkg in "${FINAL_PKGS[@]}"; do
+      run "nix-env -iA nixpkgs.${pkg}"
+    done
     ;;
-  tdnf)
-    echo "sudo tdnf makecache"
-    echo "sudo tdnf install $YESFLAG ${pkgs[*]}"
+  brew)
+    run "brew install ${FINAL_PKGS[*]}"
     ;;
   rpm-ostree)
-    echo "sudo rpm-ostree install ${pkgs[*]}"
-    ;;
-  nix-env | nix)
-    echo "nix-env -iA nixpkgs.{${pkgs[*]// /,}}"
+    # Layer and reboot is typically required to apply
+    run "sudo rpm-ostree install ${FINAL_PKGS[*]}"
+    log "[i] rpm-ostree changes may require a reboot."
     ;;
   *)
-    echo "echo 'Unsupported package manager: $mgr' >&2; exit 2"
+    log "[!] Unsupported PM: $PRIMARY_PM"
+    exit 1
     ;;
   esac
 }
 
-# Resolve package names for chosen manager
-declare -a RESOLVED=()
-for g in "${GENERIC_PKGS[@]}"; do
-  RESOLVED+=("$(resolve_pkg_name "$g" "$PRIMARY_PM")")
-done
-
-if [ "$VERBOSE" = "true" ]; then
-  echo "[*] Generic packages: ${GENERIC_PKGS[*]}" >&2
-  echo "[*] Resolved for $PRIMARY_PM: ${RESOLVED[*]}" >&2
+# -------------- Execute -----------------
+vlog "[*] Packages after overrides/dedup: ${FINAL_PKGS[*]:-<none>}"
+if [[ "${#FINAL_PKGS[@]}" -eq 0 ]]; then
+  log "[!] No packages to install after parsing."
+  exit 1
 fi
 
-mapfile -t CMDS < <(build_cmds "$PRIMARY_PM" "${RESOLVED[@]}")
+do_update
+do_install
 
-if [ "$DRY_RUN" = "true" ]; then
-  echo "[DRY-RUN] Commands to run:"
-  printf '  %s\n' "${CMDS[@]}"
-  if [ "${OSTREE,,}" = "true" ] && [ "$PRIMARY_PM" = "rpm-ostree" ]; then
-    echo "[DRY-RUN] rpm-ostree: changes typically apply after a reboot."
-  fi
-  exit 0
-fi
-
-# Execute commands
-for cmd in "${CMDS[@]}"; do
-  [ "$VERBOSE" = "true" ] && echo "[+] $cmd"
-  eval "$cmd"
-done
-
-if [ "${OSTREE,,}" = "true" ] && [ "$PRIMARY_PM" = "rpm-ostree" ]; then
-  echo "[i] rpm-ostree: changes will apply after the next reboot."
-fi
-
-echo "[✓] Installation finished with $PRIMARY_PM"
+log "[✓] Installation finished with $PRIMARY_PM"
