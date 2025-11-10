@@ -63,38 +63,56 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Creation of the necessary path to store the different scripts
-echo "Creation of all the necessary directory"
+if [[ "$VERBOSE" == true ]]; then
+  echo "Creation of all the necessary directory"
+fi
 sudo mkdir -p /usr/local/bin/HashRelay
-echo "directory /usr/local/bin/HashRelay correctly created"
+if [[ "$VERBOSE" == true ]]; then
+  echo "directory /usr/local/bin/HashRelay correctly created"
+fi
 
 agent_selector() {
-  echo "Choose the agent you want to install on this machine:"
-  echo "  1) Client"
-  echo "  2) Server"
+  while true; do
+    echo "Choose the agent you want to install on this machine:"
+    echo "  1) Client (Default)"
+    echo "  2) Server"
 
-  read -rp "Selection [1/2]: " mode
-  mode=${mode:-1}
+    read -rp "Selection [1/2]: " mode || {
+      echo "No input (EOF). Aborting." >&2
+      exit 1
+    }
+    mode=${mode:-1} # Default 1 if empty
 
-  if [[ "$mode" == "1" ]]; then
-    echo "You choose to install the hashrelay-client agent."
-    echo "Starting the installation/configuration"
-    CLIENT_AGENT=true
-  else
-    echo "You choose to install the hashrelay-server agent."
-    echo "Starting the installation/configuration"
-    SERVER_AGENT=true
-  fi
+    case "$mode" in
+    1)
+      echo "You choose to install the hashrelay-client agent."
+      echo "Starting the installation/configuration !"
+      CLIENT_AGENT=true
+      SERVER_AGENT=false
+      break
+      ;;
+    2)
+      echo "You choose to install the hashrelay-server agent."
+      echo "Starting the installation/configuration !"
+      CLIENT_AGENT=false
+      SERVER_AGENT=true
+      break
+      ;;
+    *)
+      echo "Invalid selection: '$mode'. Please enter 1 or 2." >&2
+      ;;
+    esac
+  done
 }
 
 agent_selector
 
-# Pinting the agent
+# Moving the specifics scripts to the created directory /usr/local/bin/HashRelay
 if [[ "$CLIENT_AGENT" == true ]]; then
   echo "CLIENT_AGENT=true"
 elif [[ "$SERVER_AGENT" == true ]]; then
   echo "SERVER_AGENT=true"
 else
-  echo "Cannot find the agent configuration."
-  echo "Choose an agent between server and client"
-  agent_selector
+  echo "Cannot find the agent configuration (This should not happen)."
+  exit 1
 fi
