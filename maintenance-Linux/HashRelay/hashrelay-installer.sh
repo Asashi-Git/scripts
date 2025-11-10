@@ -231,4 +231,6 @@ chmod_script_recursive() {
 
 chmod_script_recursive
 
+# Lunching the next step of the installation, the script to install all
+# of the necessary program for our HashRelay service to work.
 sudo bash /usr/local/bin/HashRelay/pkg-auto-install/pkg-auto-install.sh
