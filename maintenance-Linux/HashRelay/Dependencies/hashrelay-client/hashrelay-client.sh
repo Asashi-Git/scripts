@@ -13,6 +13,8 @@ if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
   exit 1
 fi
 
+CONFIG_FILE="/usr/local/bin/HashRelay/agent.conf"
+
 VERBOSE=false # If true, print extra diagnostic logs
 DRY_RUN=false # If true, only print commands; do not execute
 CLI=false     # If true, no graphical interface will be displayed
@@ -61,8 +63,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-CONFIG_FILE="/usr/local/bin/HashRelay/agent.conf"
-
 # Make sure the configuration file have the client-conf flag in it
 if [[ "$CONFIG_FILE" ]]; then
   echo "The configuration file exist !"
@@ -72,114 +72,49 @@ fi
 
 # This function read the configuration file to ensure that the client agent
 # is the agent that the user want to install.
-loading_agent_config() {
-  local path="${CONFIG_FILE:-}"
+client_configurator() {
+  if [[ "$CLI" == false ]]; then
+    echo "You Have choosen to install the client agent with the graphical configurator"
+    echo "We will now configure it."
+    gum spin --title "Configuring the Client graphical interface" -- sleep 5
 
-  # 1) Require CONFIG_PATH and the file
-  if [[ -z "$path" ]]; then
-    echo "CONFIG_PATH is not set"
-    return 1
-  fi
-  if [[ ! -f "$path" ]]; then
-    echo "Configuration file do not exist, contact your administrator"
-    return 1
-  fi
+    title="HASHRELAY CLIENT CONFIGURATOR"
+    gum style --border double --margin "1 2" --padding "1 2" --border-foreground 212 \
+      "Welcome to $title"
 
-  # 2) Parse safely (no sourcing)
-  local line key val v
-  local client=""
-  local server=""
+    # Menu
+    choice=$(printf "Configure the server IP\nConfigure the server Port\nQuit" |
+      gum choose --cursor.foreground="#ff5fd2" --header "Choose an action")
+    [ -z "${choice:-}" ] && exit 0
 
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    # strip comments and whitespace
-    line="${line%%#*}"
-    line="${line#"${line%%[![:space:]]*}"}" # ltrim
-    line="${line%"${line##*[![:space:]]}"}" # rtrim
-    [[ -z "$line" ]] && continue
-
-    # match KEY = VALUE
-    if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
-      key="${BASH_REMATCH[1]}"
-      val="${BASH_REMATCH[2]}"
-
-      # remove surrounding quotes if present
-      if [[ "$val" =~ ^\'(.*)\'$ ]]; then
-        val="${BASH_REMATCH[1]}"
-      elif [[ "$val" =~ ^\"(.*)\"$ ]]; then
-        val="${BASH_REMATCH[1]}"
+    case "$choice" in
+    "Configure the server IP")
+      if [[ "$DRY_RUN" == false ]]; then
+        sudo bash /usr/local/bin/HashRelay/contact-ip/contact-ip.sh
       fi
-
-      v="${val,,}" # to lowercase
-      case "$key" in
-      CLIENT_AGENT)
-        if [[ "$v" =~ ^(true|yes|on|1)$ ]]; then client=true; else client=false; fi
-        ;;
-      SERVER_AGENT)
-        if [[ "$v" =~ ^(true|yes|on|1)$ ]]; then server=true; else server=false; fi
-        ;;
-      esac
-    fi
-  done <"$path"
-
-  # defaults if keys absent
-  [[ -z "$client" ]] && client=false
-  [[ -z "$server" ]] && server=false
-
-  # 3) Output exactly as requested
-  if [[ "$client" == true ]]; then
-    if [[ "$CLI" == false ]]; then
-      echo "You Have choosen to install the client agent with the graphical configurator"
-      echo "We will now configure it."
-      gum spin --title "Configuring the Client graphical interface" -- sleep 5
-
-      title="HASHRELAY CLIENT CONFIGURATOR"
-      gum style --border double --margin "1 2" --padding "1 2" --border-foreground 212 \
-        "Welcome to $title"
-
-      # Menu
-      choice=$(printf "Configure the server IP\nConfigure the server Port\n" |
-        gum choose --cursor.foreground="#ff5fd2" --header "Choose an action")
-      [ -z "${choice:-}" ] && exit 0
-
-      case "$choice" in
-      "Configure the server IP")
-        #sudo bash /usr/local/bin/HashRelay/contact-ip/contact-ip.sh
+      if [[ "$VERBOSE" == true ]]; then
         echo "lunching the contact-ip script"
-        ;;
-      "Configure the server Port")
-        #sudo bash /usr/local/bin/HashRelay/contact-port/contact-port.sh
+      fi
+      ;;
+    "Configure the server Port")
+      if [[ "$DRY_RUN" == false ]]; then
+        sudo bash /usr/local/bin/HashRelay/contact-port/contact-port.sh
+      fi
+      if [[ "$VERBOSE" == true ]]; then
         echo "lunching the contact-port script"
-        ;;
-      esac
+      fi
+      ;;
+    "Quit")
+      echo "See you later !"
+      exit 0
+      ;;
+    esac
 
-    fi
-    if [[ "$CLI" == true ]]; then
-      echo "You have choosen to install the client agent with CLI, we will now configure it."
-      sleep 5
-      echo "Strating the client configuration:"
-    fi
+  fi
+  if [[ "$CLI" == true ]]; then
+    echo "You have choosen to install the client agent with CLI, we will now configure it."
+    sleep 5
+    echo "Strating the client configuration:"
   fi
 
-  if [[ "$server" == true ]]; then
-    if [[ "$CLI" == false ]]; then
-      echo "You have choosen to install the server agent with the graphical configurator"
-      echo "We will now configure it:"
-      gum spin --title "Configuring the Server graphical interface" -- sleep 5
-    fi
-    if [[ "$CLI" == true ]]; then
-      echo "You have choosen to install the server agent with CLI, we will now configure it."
-      sleep 5
-      echo "Strating the server configuration:"
-    fi
-  fi
-
-  # 4) Sanity check (optional but useful)
-  if [[ "$client" == "$server" ]]; then
-    echo "Warning: invalid configuration in $path (exactly one should be true)."
-    return 2
-  fi
-
-  return 0
 }
-
-loading_agent_config
