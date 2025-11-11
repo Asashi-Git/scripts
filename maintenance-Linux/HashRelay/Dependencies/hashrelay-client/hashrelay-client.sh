@@ -73,7 +73,7 @@ fi
 # This function read the configuration file to ensure that the client agent
 # is the agent that the user want to install.
 loading_agent_config() {
-  local path="${CONFIG_PATH:-}"
+  local path="${CONFIG_FILE:-}"
 
   # 1) Require CONFIG_PATH and the file
   if [[ -z "$path" ]]; then
