@@ -76,7 +76,7 @@ client_configurator() {
   if [[ "$CLI" == false ]]; then
     echo "You Have choosen to install the client agent with the graphical configurator"
     echo "We will now configure it."
-    gum spin --title "Configuring the Client graphical interface" -- sleep 5
+    gum spin --title "Configuring the Client graphical interface" -- sleep 1
 
     title="HASHRELAY CLIENT CONFIGURATOR"
     gum style --border double --margin "1 2" --padding "1 2" --border-foreground 212 \
