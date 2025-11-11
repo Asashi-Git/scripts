@@ -413,3 +413,5 @@ lunch_agent_config() {
 
   return 0
 }
+
+lunch_agent_config
