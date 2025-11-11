@@ -29,6 +29,7 @@ set -euo pipefail
 # -------------- Defaults and CLI -----------------
 DETECT_PATH="${DETECT_PATH:-/usr/local/bin/HashRelay/distro-and-pkgman-detect/distro-and-pkgman-detect.sh}"
 # Default path to our detector; can be overridden by env var DETECT_PATH
+CONFIG_PATH="/usr/local/bin/HashRelay/agent.conf"
 
 PKG_LIST="/usr/local/bin/HashRelay/pkg-auto-install/packages.list" # Default file containing package specifications
 DRY_RUN=false                                                      # If true, only print commands; do not execute
@@ -333,3 +334,82 @@ do_update  # refresh package metadata/index
 do_install # install the final deduplicated list
 
 log "[✓] Installation finished with $PRIMARY_PM"
+
+# Lunch the main configuration script
+# by looking at the configuration file
+# if CLIENT_AGENT=true lunch the hashrelay-client.sh script
+# of SERVER_AGENT=true lunch the hashrelay-server.sh script
+lunch_agent_config() {
+  local path="${CONFIG_PATH:-}"
+
+  # 1) Require CONFIG_PATH and the file
+  if [[ -z "$path" ]]; then
+    echo "CONFIG_PATH is not set"
+    return 1
+  fi
+  if [[ ! -f "$path" ]]; then
+    echo "Configuration file do not exist, contact your administrator"
+    return 1
+  fi
+
+  # 2) Parse safely (no sourcing)
+  local line key val v
+  local client=""
+  local server=""
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    # strip comments and whitespace
+    line="${line%%#*}"
+    line="${line#"${line%%[![:space:]]*}"}" # ltrim
+    line="${line%"${line##*[![:space:]]}"}" # rtrim
+    [[ -z "$line" ]] && continue
+
+    # match KEY = VALUE
+    if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      val="${BASH_REMATCH[2]}"
+
+      # remove surrounding quotes if present
+      if [[ "$val" =~ ^\'(.*)\'$ ]]; then
+        val="${BASH_REMATCH[1]}"
+      elif [[ "$val" =~ ^\"(.*)\"$ ]]; then
+        val="${BASH_REMATCH[1]}"
+      fi
+
+      v="${val,,}" # to lowercase
+      case "$key" in
+      CLIENT_AGENT)
+        if [[ "$v" =~ ^(true|yes|on|1)$ ]]; then client=true; else client=false; fi
+        ;;
+      SERVER_AGENT)
+        if [[ "$v" =~ ^(true|yes|on|1)$ ]]; then server=true; else server=false; fi
+        ;;
+      esac
+    fi
+  done <"$path"
+
+  # defaults if keys absent
+  [[ -z "$client" ]] && client=false
+  [[ -z "$server" ]] && server=false
+
+  # 3) Output exactly as requested
+  if [[ "$client" == true ]]; then
+    echo "client agent true"
+  else
+    echo "client agent false"
+  fi
+
+  if [[ "$server" == true ]]; then
+    echo "server agent true"
+  else
+    echo "server agent false"
+  fi
+
+  # 4) Sanity check (optional but useful)
+  if [[ "$client" == "$server" ]]; then
+    echo "Warning: invalid configuration in $path (exactly one should be true)."
+    return 2
+  fi
+
+  return 0
+}
