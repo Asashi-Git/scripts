@@ -63,3 +63,86 @@ if [[ "$CONFIG_FILE" ]]; then
 else
   echo "Configuration file not found, you must lunch the installer-script first !"
 fi
+
+# This function read the configuration file to ensure that the client agent
+# is the agent that the user want to install.
+loading_agent_config() {
+  local path="${CONFIG_PATH:-}"
+
+  # 1) Require CONFIG_PATH and the file
+  if [[ -z "$path" ]]; then
+    echo "CONFIG_PATH is not set"
+    return 1
+  fi
+  if [[ ! -f "$path" ]]; then
+    echo "Configuration file do not exist, contact your administrator"
+    return 1
+  fi
+
+  # 2) Parse safely (no sourcing)
+  local line key val v
+  local client=""
+  local server=""
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    # strip comments and whitespace
+    line="${line%%#*}"
+    line="${line#"${line%%[![:space:]]*}"}" # ltrim
+    line="${line%"${line##*[![:space:]]}"}" # rtrim
+    [[ -z "$line" ]] && continue
+
+    # match KEY = VALUE
+    if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      val="${BASH_REMATCH[2]}"
+
+      # remove surrounding quotes if present
+      if [[ "$val" =~ ^\'(.*)\'$ ]]; then
+        val="${BASH_REMATCH[1]}"
+      elif [[ "$val" =~ ^\"(.*)\"$ ]]; then
+        val="${BASH_REMATCH[1]}"
+      fi
+
+      v="${val,,}" # to lowercase
+      case "$key" in
+      CLIENT_AGENT)
+        if [[ "$v" =~ ^(true|yes|on|1)$ ]]; then client=true; else client=false; fi
+        ;;
+      SERVER_AGENT)
+        if [[ "$v" =~ ^(true|yes|on|1)$ ]]; then server=true; else server=false; fi
+        ;;
+      esac
+    fi
+  done <"$path"
+
+  # defaults if keys absent
+  [[ -z "$client" ]] && client=false
+  [[ -z "$server" ]] && server=false
+
+  # 3) Output exactly as requested
+  if [[ "$client" == true ]]; then
+    echo "You Have choosen to install the client agent, we will now configure it."
+    sleep 3
+    echo "test"
+  else
+    echo "client agent false"
+    exit 1
+  fi
+
+  if [[ "$server" == true ]]; then
+    echo "You have choosen to install the server agent, we will now configure it."
+    sleep 3
+    echo "test"
+  else
+    echo "server agent false"
+    exit 1
+  fi
+
+  # 4) Sanity check (optional but useful)
+  if [[ "$client" == "$server" ]]; then
+    echo "Warning: invalid configuration in $path (exactly one should be true)."
+    return 2
+  fi
+
+  return 0
+}
