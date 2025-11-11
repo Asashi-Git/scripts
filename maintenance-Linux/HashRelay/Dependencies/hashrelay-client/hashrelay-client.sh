@@ -131,6 +131,27 @@ loading_agent_config() {
       echo "You Have choosen to install the client agent with the graphical configurator"
       echo "We will now configure it."
       gum spin --title "Configuring the Client graphical interface" -- sleep 5
+
+      title="HASHRELAY CLIENT CONFIGURATOR"
+      gum style --border double --margin "1 2" --padding "1 2" --border-foreground 212 \
+        "Welcome to $title"
+
+      # Menu
+      choice=$(printf "Configure the server IP\nConfigure the server Port\n" |
+        gum choose --cursor.foreground="#ff5fd2" --header "Choose an action")
+      [ -z "${choice:-}" ] && exit 0
+
+      case "$choice" in
+      "Configure the server IP")
+        #sudo bash /usr/local/bin/HashRelay/contact-ip/contact-ip.sh
+        echo "lunching the contact-ip script"
+        ;;
+      "Configure the server Port")
+        #sudo bash /usr/local/bin/HashRelay/contact-port/contact-port.sh
+        echo "lunching the contact-port script"
+        ;;
+      esac
+
     fi
     if [[ "$CLI" == true ]]; then
       echo "You have choosen to install the client agent with CLI, we will now configure it."
