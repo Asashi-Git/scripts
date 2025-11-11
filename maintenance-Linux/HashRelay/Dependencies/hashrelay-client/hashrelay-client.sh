@@ -118,3 +118,4 @@ client_configurator() {
   fi
 
 }
+client_configurator
