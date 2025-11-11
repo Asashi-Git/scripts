@@ -141,7 +141,6 @@ if [[ "$CLIENT_AGENT" == true ]]; then
   fi
   # Moving the client necessary scripts to the HashRelay directory
   if [[ "$DRY_RUN" == false ]]; then
-    #sudo mv "$LOCATION_PATH/Dependencies" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/backups-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/contact-ip" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/delete-manager" "/usr/local/bin/HashRelay"
@@ -153,6 +152,7 @@ if [[ "$CLIENT_AGENT" == true ]]; then
     sudo mv "$LOCATION_PATH/Dependencies/sender" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/ssh-configuration-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/ufw-configuration-manager" "/usr/local/bin/HashRelay"
+    printf 'CLIENT_AGENT=true\n' | sudo tee "/usr/local/bin/HashRelay/agent.conf" >/dev/null
     sudo rm -rf "$LOCATION_PATH/Dependencies"
   fi
 elif [[ "$SERVER_AGENT" == true ]]; then
