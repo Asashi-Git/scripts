@@ -23,7 +23,7 @@ fi
 gum spin --title "Pinging $host" -- ping -c 4 -- "$host"
 
 SERVER_IP="$host"
-printf "SERVER_IP=%s$SERVER_IP\n" | sudo tee -a "/usr/local/HashRelay/agent.conf"
+printf "SERVER_IP=%s$SERVER_IP\n" | sudo tee -a "/usr/local/bin/HashRelay/agent.conf"
 echo "Your server IP is $SERVER_IP"
 
 sudo bash /usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh
