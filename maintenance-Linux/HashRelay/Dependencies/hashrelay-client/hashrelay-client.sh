@@ -83,7 +83,7 @@ client_configurator() {
       "Welcome to $title"
 
     # Menu
-    choice=$(printf "Configure the server IP\nConfigure the server Port\nQuit" |
+    choice=$(printf "Configure the server IP\nConfigure the server Port\nSee the config file\nQuit" |
       gum choose --cursor.foreground="#ff5fd2" --header "Choose an action")
     [ -z "${choice:-}" ] && exit 0
 
@@ -102,6 +102,14 @@ client_configurator() {
       fi
       if [[ "$VERBOSE" == true ]]; then
         echo "lunching the contact-port script"
+      fi
+      ;;
+    "See the config file")
+      if [[ "$DRY_RUN" == false ]]; then
+        gum pager </usr/local/bin/HashRelay/agent.conf
+      fi
+      if [[ "$VERBOSE" == true ]]; then
+        echo "Show the configuration file"
       fi
       ;;
     "Quit")
