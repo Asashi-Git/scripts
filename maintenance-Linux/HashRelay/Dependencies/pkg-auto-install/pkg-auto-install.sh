@@ -395,12 +395,14 @@ lunch_agent_config() {
   # 3) Output exactly as requested
   if [[ "$client" == true ]]; then
     echo "client agent true"
+    sudo bash /usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh
   else
     echo "client agent false"
   fi
 
   if [[ "$server" == true ]]; then
     echo "server agent true"
+    sudo bash /usr/local/bin/HashRelay/hashrelay-server/hashrelay-server.sh
   else
     echo "server agent false"
   fi
