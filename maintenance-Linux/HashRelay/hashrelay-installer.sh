@@ -143,6 +143,7 @@ if [[ "$CLIENT_AGENT" == true ]]; then
   if [[ "$DRY_RUN" == false ]]; then
     sudo mv "$LOCATION_PATH/Dependencies/backups-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/contact-ip" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/contact-port" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/delete-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/distro-and-pkgman-detect" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/hash-printer" "/usr/local/bin/HashRelay"
