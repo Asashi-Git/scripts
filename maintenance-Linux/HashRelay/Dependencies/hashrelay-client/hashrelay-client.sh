@@ -78,6 +78,7 @@ client_configurator() {
       echo "You Have choosen to install the client agent with the graphical configurator"
       echo "We will now configure it."
     fi
+    clear
     gum spin --title "Configuring the Client graphical interface" -- sleep 1
 
     title="HASHRELAY CLIENT CONFIGURATOR"
@@ -93,7 +94,6 @@ client_configurator() {
     "Configure the server IP")
       if [[ "$DRY_RUN" == false ]]; then
         sudo bash /usr/local/bin/HashRelay/contact-ip/contact-ip.sh
-        clear
       fi
       if [[ "$VERBOSE" == true ]]; then
         echo "lunching the contact-ip script"
@@ -102,7 +102,6 @@ client_configurator() {
     "Configure the server Port")
       if [[ "$DRY_RUN" == false ]]; then
         sudo bash /usr/local/bin/HashRelay/contact-port/contact-port.sh
-        clear
       fi
       if [[ "$VERBOSE" == true ]]; then
         echo "lunching the contact-port script"
@@ -115,7 +114,6 @@ client_configurator() {
       if [[ "$DRY_RUN" == false ]]; then
         gum pager </usr/local/bin/HashRelay/agent.conf
         sudo bash /usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh
-        clear
       fi
       ;;
     "Quit")
