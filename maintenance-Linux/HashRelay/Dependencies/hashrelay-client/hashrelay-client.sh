@@ -105,11 +105,12 @@ client_configurator() {
       fi
       ;;
     "See the config file")
-      if [[ "$DRY_RUN" == false ]]; then
-        gum pager </usr/local/bin/HashRelay/agent.conf
-      fi
       if [[ "$VERBOSE" == true ]]; then
         echo "Show the configuration file"
+      fi
+      if [[ "$DRY_RUN" == false ]]; then
+        gum pager </usr/local/bin/HashRelay/agent.conf
+        sudo bash /usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh
       fi
       ;;
     "Quit")
