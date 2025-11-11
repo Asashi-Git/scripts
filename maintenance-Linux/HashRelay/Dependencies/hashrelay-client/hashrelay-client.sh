@@ -5,7 +5,7 @@
 #
 # Author: Decarnelle Samuel
 #
-#
+# This script need gum for the graphical interface to work "sudo pacman -S gum"
 
 # Ensure the script is luched as sudo
 if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
@@ -15,6 +15,7 @@ fi
 
 VERBOSE=false # If true, print extra diagnostic logs
 DRY_RUN=false # If true, only print commands; do not execute
+CLI=false     # If true, no graphical interface will be displayed
 
 # usage(): print help text:
 usage() {
@@ -23,6 +24,7 @@ usage() {
   Options:
     --verbose           Extra logging
     --dry-run           Show commands without executing
+    --cli               Run the script without graphical interface
     -h|--help           This help
   Environement:
     This scirpt is your main scritp to interact with the configuration of your installed agent
@@ -36,11 +38,15 @@ USAGE
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --verbose)
-    VERBOSE=true
+    VERBOSE=true # Extra logging
     shift
     ;;
   --dry-run)
-    DRY_RUN=true
+    DRY_RUN=true # Extra show commands without executing
+    shift
+    ;;
+  --cli)
+    CLI=true # Run the script without graphical interface
     shift
     ;;
   -h | --help)
@@ -121,21 +127,29 @@ loading_agent_config() {
 
   # 3) Output exactly as requested
   if [[ "$client" == true ]]; then
-    echo "You Have choosen to install the client agent, we will now configure it."
-    sleep 3
-    echo "test"
-  else
-    echo "client agent false"
-    exit 1
+    if [[ "$CLI" == false ]]; then
+      echo "You Have choosen to install the client agent with the graphical configurator"
+      echo "We will now configure it."
+      gum spin --title "Configuring the Client graphical interface" -- sleep 5
+    fi
+    if [[ "$CLI" == true ]]; then
+      echo "You have choosen to install the client agent with CLI, we will now configure it."
+      sleep 5
+      echo "Strating the client configuration:"
+    fi
   fi
 
   if [[ "$server" == true ]]; then
-    echo "You have choosen to install the server agent, we will now configure it."
-    sleep 3
-    echo "test"
-  else
-    echo "server agent false"
-    exit 1
+    if [[ "$CLI" == false ]]; then
+      echo "You have choosen to install the server agent with the graphical configurator"
+      echo "We will now configure it:"
+      gum spin --title "Configuring the Server graphical interface" -- sleep 5
+    fi
+    if [[ "$CLI" == true ]]; then
+      echo "You have choosen to install the server agent with CLI, we will now configure it."
+      sleep 5
+      echo "Strating the server configuration:"
+    fi
   fi
 
   # 4) Sanity check (optional but useful)
@@ -146,3 +160,5 @@ loading_agent_config() {
 
   return 0
 }
+
+loading_agent_config
