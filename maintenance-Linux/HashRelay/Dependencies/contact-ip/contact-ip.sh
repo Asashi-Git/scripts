@@ -68,8 +68,11 @@ valid_ipv4() {
   [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
 
   # Split and check each octet range
+  # IFS stands for Internal Field Separator.
+  # It’s a special shell variable that controls how Bash splits strings into “fields”
+  # during word splitting and when using the read builtin
   IFS='.' read -r o1 o2 o3 o4 <<<"$ip"
-  for o in "$o1" "$o2" "$o3" "$o4"; do
+  for o in "$o1" "$o2" "$o3" "$o4"; do # split an IPv4 into four octets using dot as the delimiter
     # Must be numeric and within 0–255
     [[ "$o" =~ ^[0-9]+$ ]] || return 1
     ((o >= 0 && o <= 255)) || return 1
