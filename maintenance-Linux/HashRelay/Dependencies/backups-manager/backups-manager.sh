@@ -152,7 +152,7 @@ if [[ "$NAME" == true ]]; then
   while :; do
     # Pre-fill with existing value if we had one
     name="$(gum input --placeholder 'e.g. sam' \
-      ${existing_name:+--value= "$existing_name"})"
+      ${existing_name:+--value="$existing_name"})"
 
     # If user pressed Enter on an empty input, exit gracefully
     [[ -z "${name:-}" ]] && {
