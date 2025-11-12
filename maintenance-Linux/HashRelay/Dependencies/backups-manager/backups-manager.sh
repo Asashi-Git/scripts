@@ -68,6 +68,34 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+get_existing_name() {
+  [[ -f "$CONFIG_FILE" ]] || {
+    echo ""
+    return
+  }
+
+  local line
+  line="$(grep -E '^[[:space:]]*NAME[[:space:]]*=' "$CONFIG_FILE" | tail -n1 || true)"
+  [[ -z "$line" ]] && {
+    echo ""
+    return
+  }
+
+  line="${line#*=}"
+
+  # Trim leading/trailing whitespace
+  line="${line#"${line%%[![:space:]]*}"}" # ltrim
+  line="${line%"${line##*[![:space:]]}"}" # rtrim
+
+  # Remove surrounding single/double quotes, if any
+  line="${line%\"}"
+  line="${line#\"}"
+  line="${line%\'}"
+  line="${line#\'}"
+
+  echo "$line"
+}
+
 # Only if --name is invoked
 if [[ "$NAME" == true ]]; then
   if [[ -f "$CONFIG_FILE" ]]; then
