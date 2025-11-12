@@ -166,7 +166,7 @@ if [[ "$NUMBER" == true ]]; then
       sudo cp -a -- "$CONFIG_FILE" "CONFIG_FILE.bak.$(date -Iseconds)"
       sudo sed -i -E "s|^[[:space:]]*CHAIN_BACKUPS_NUMBER[[:space:]]*=.*$|CHAIN_BACKUPS_NUMBER=$number|" "$CONFIG_FILE"
     else
-      printf "CHAIN_BACKUPS_NCHAIN_BACKUPS_NUMBERR=%s\n" "$number" | sudo tee -a "$CONFIG_FILE" >/dev/null
+      printf "CHAIN_BACKUPS_NUMBER=%s\n" "$number" | sudo tee -a "$CONFIG_FILE" >/dev/null
     fi
   }
 
