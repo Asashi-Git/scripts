@@ -259,7 +259,7 @@ while IFS= read -r line; do
 
   # Timestamp: Second-Minutes-Hour-Year-Month-Date
   #NOW="$(date +%S-%M-%H-%Y-%m-%d)"
-  NOW="$(date %Y-%m-%d-%H-%M-+%S)"
+  NOW="$(date +%Y-%m-%d-%H-%M-%S)"
 
   # Build archive path
   SAFE_BACKUP_NAME="$(sanitize_name "$BACKUP_NAME")"
