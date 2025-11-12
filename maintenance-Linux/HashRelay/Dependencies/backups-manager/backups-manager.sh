@@ -16,7 +16,6 @@ fi
 
 # Your variables
 BACKUP_CONF="/usr/local/bin/HashRelay/backups-manager/backups.conf"
-BACKUP_DIR="/home/sam/backups"
 BACKUP_NAME="" # set per-line from the config
 BACKUP_PATH="" # set per-line from the config
 NOW=""         # set per-backup with seconds, minutes, hours, year, month, date
@@ -95,6 +94,11 @@ get_existing_name() {
 
   echo "$line"
 }
+
+# Get the name for the path of the backup path
+USER_PATH_NAME=$(get_existing_name)
+
+BACKUP_DIR="/home/sam/backups/$USER_PATH_NAME"
 
 # Only if --name is invoked
 if [[ "$NAME" == true ]]; then
@@ -276,6 +280,6 @@ while IFS= read -r line; do
   fi
 done < <(grep -Ev '^\s*(#|$)' "$BACKUP_CONF")
 
+echo "$USER_PATH_NAME"
+
 echo "=== END backup run ==="
-user_name=$(get_existing_name)
-echo "$user_name"
