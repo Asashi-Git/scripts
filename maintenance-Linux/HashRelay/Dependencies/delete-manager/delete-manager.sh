@@ -104,10 +104,9 @@ get_existing_name() {
 
 # Get the name for the path of the backup path
 USER_PATH_NAME=$(get_existing_name)
-BACKUP_DIR="/home/sam/backups/$USER_PATH_NAME" # Need to be changed before release to HashRelay!!!!!
+BACKUP_DIR="/home/sam/backups/$USER_PATH_NAME" # will be changed in the release from sam to HashRelay
 
 # Only if --number is invoked
-# TEMP !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 if [[ "$NUMBER" == true ]]; then
   if [[ -f "$CONFIG_FILE" ]]; then
     if [[ "$VERBOSE" == true ]]; then
@@ -211,8 +210,100 @@ if [[ "$NUMBER" == true ]]; then
 
   # Persist the chosen number into the config
   set_num "$NUMBER"
-  echo "Your name is set to: $NUMBER"
+  echo "Your number is set to: $NUMBER"
 
   # Finally, chain to the client script: exec replace the current process
   exec sudo bash "$NEXT"
 fi
+
+# Logging
+LOG_DIR="/var/log/HashRelay"
+LOG_FILE="${LOG_DIR}/delete.log"
+umask 027
+mkdir -p -- "$LOG_DIR"
+# Ensure log file exist with restrictive perms
+touch -- "$LOG_FILE"
+chmod 655 -- "$LOG_FILE" "$LOG_DIR"
+
+# Route all stdout/stderr to both console and the log file, with timestamps
+# Use gawk to prefix line with a timestamps.
+exec > >(awk '{ print strftime("[%Y-%m-%d %H:%M:%S%z]"), $0; fflush(); }' | tee -a "$LOG_FILE") 2>&1
+
+echo "=== START delete run ==="
+echo "Using config: $BACKUP_CONF"
+echo "Using config: $CONFIG_FILE"
+echo "Destination:  $BACKUP_DIR"
+echo "Log file:     $LOG_FILE"
+
+# Get the number that the user choose during it's configuration inside the CONFIG_FILE
+choosen_number() {
+  [[ -f "$CONFIG_FILE" ]] || {
+    echo ""
+    return
+  }
+
+  local line
+  line="$(grep -E '^[[:space:]]*CHAIN_BACKUPS_NUMBER[[:space:]]*=' "$CONFIG_FILE" | tail -n1 || true)"
+  [[ -z "$line" ]] && {
+    echo ""
+    return
+  }
+
+  line="${line#*=}"
+
+  # Trim leading/trailing whitespace
+  line="${line#"${line%%[![:space:]]*}"}" # ltrim
+  line="${line%"${line##*[![:space:]]}"}" # rtrim
+
+  # Remove surrounding single/double quotes, if any
+  line="${line%\"}"
+  line="${line#\"}"
+  line="${line%\'}"
+  line="${line#\'}"
+
+  echo "$line"
+}
+
+# Placing the backup number inside a variable
+BACKUP_NUMBER="$(choosen_number)"
+AGE_CONF="/usr/local/bin/HashRelay/delete-manager/age.conf"
+
+# Printing the choosen_number
+if [[ "$VERBOSE" == true ]]; then
+  echo "Inside the configuration, the user choose to backup $BACKUP_NUMBER iteration of the same file"
+fi
+
+# Read the AGE_CONF file to see the age of each backup
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! MUST BE DONE
+
+# Add the backup file inside the AGE_CONF if it's a new backup file
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! MUST BE DONE
+
+# If the name of the backup already exist, append to the backup name section
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! MUST BE DONE
+
+# This is how the AGE_CONF file should look like with an BACKUP_NUMBER of 3:
+#
+# # Contain the age of each backups file # This is how the AGE_CONF file look like actually he just have this comment.
+# -nginx.conf:
+# backup-nginx.conf-56-12-22-2025-11-12.tar.gz -> AGE=0 (This is for 56 seconde 12 minute 22hour of the year 2025 November(11) the 12). This is the newest backup, he got juste backed up.
+# backup-nginx.conf-34-11-20-2025-11-12.tar.gz -> AGE=1
+# backup-nginx.conf-20-30-18-2025-11-12.tar.gz -> AGE=2
+# backup-nginx.conf-47-25-15-2025-11-12.tar.gz -> AGE=3 (This backup should be deleted be cause he just got an age of 3 and the BACKUP_NUMBER is = 3)
+# -nginx: (Here that's not the nginx.conf but directory that's been backup)
+# backup-nginx-34-11-20-2025-11-12.tar.gz -> AGE=0
+# backup-nginx-24-32-14-2025-11-12.tar.gz -> AGE=1
+# -HashRelay:
+# backup-HashRelay-53-45-10-2025-11-10.tar.gz -> AGE=0
+# backup-HashRelay-41-32-10-2025-11-09.tar.gz -> AGE=1
+# backup-HashRelay-14-23-07-2025-10-08.tar.gz -> AGE=2
+#
+# So in this example of AGE_CONF the nginx.conf backup with an age of 3 because BACKUP_NUMBER
+# been configured to 3 inside the CONFIG_FILE should be deleted.
+# The next time the user do an backup of nginx.conf, the backup with the age of 2
+# should get an age of 3 and then should be deleted too. They should be deleted
+# from the AGE_CONF and inside the BACKUP_DIR. What's good with this method is
+# that is easy for us to delete the real backup file inside the BACKUP_DIR because
+# we already have the exact name of the file and his directory with the BACKUP_DIR variable.
+# I don't want to use another file then the AGE_CONF file because with one file it's
+# more readable and more easy for me to centralize all inside one file.

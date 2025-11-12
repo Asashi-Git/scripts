@@ -97,7 +97,6 @@ get_existing_name() {
 
 # Get the name for the path of the backup path
 USER_PATH_NAME=$(get_existing_name)
-
 BACKUP_DIR="/home/sam/backups/$USER_PATH_NAME" # Need to be changed before release to HashRelay!!!!!
 
 # Only if --name is invoked
@@ -259,7 +258,8 @@ while IFS= read -r line; do
   fi
 
   # Timestamp: Second-Minutes-Hour-Year-Month-Date
-  NOW="$(date +%S-%M-%H-%Y-%m-%d)"
+  #NOW="$(date +%S-%M-%H-%Y-%m-%d)"
+  NOW="$(date %Y-%m-%d-%H-%M-+%S)"
 
   # Build archive path
   SAFE_BACKUP_NAME="$(sanitize_name "$BACKUP_NAME")"
