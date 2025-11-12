@@ -249,3 +249,5 @@ while IFS= read -r line; do
 done < <(grep -Ev '^\s*(#|$)' "$BACKUP_CONF")
 
 echo "=== END backup run ==="
+user_name=$(get_existing_name)
+echo "$user_name"
