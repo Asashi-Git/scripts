@@ -86,11 +86,19 @@ client_configurator() {
       "Welcome to $title"
 
     # Menu
-    choice=$(printf "Configure the server IP\nConfigure the server Port\nSee the config file\nQuit" |
+    choice=$(printf "Configure your machine name\nConfigure the server IP\nConfigure the server Port\nSee the config file\nQuit" |
       gum choose --cursor.foreground="#ff5fd2" --header "Choose an action")
     [ -z "${choice:-}" ] && exit 0
 
     case "$choice" in
+    "Configure your machine name")
+      if [[ "$DRY_RUN" == false ]]; then
+        sudo bash /usr/local/bin/HashRelay/backups-manager/backups-manager.sh --name
+      fi
+      if [[ "$VERBOSE" == true ]]; then
+        echo "lunching the backups-manager script with --name flag"
+      fi
+      ;;
     "Configure the server IP")
       if [[ "$DRY_RUN" == false ]]; then
         sudo bash /usr/local/bin/HashRelay/contact-ip/contact-ip.sh
