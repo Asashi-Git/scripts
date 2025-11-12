@@ -28,7 +28,7 @@ umask 027
 mkdir -p -- "$LOG_DIR" "$BACKUP_DIR"
 # Ensure log file exists with restrictive perms
 touch -- "$LOG_FILE"
-chmod 650 -- "$LOG_FILE"
+chmod 650 -- "$LOG_FILE" "$LOG_DIR"
 
 # Route all stdout/stderr to both console and the log file, with timestamps
 # Uses gawk to prefix lines with a timestamp.
