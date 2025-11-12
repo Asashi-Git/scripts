@@ -70,7 +70,7 @@ done
 
 # Only if --name is invoked
 if [[ "$NAME" == true ]]; then
-  if [[ "$CONFIG_FILE" ]]; then
+  if [[ -f "$CONFIG_FILE" ]]; then
     if [[ "$VERBOSE" == true ]]; then
       echo "The configuration file exist !"
     else
@@ -108,8 +108,8 @@ if [[ "$NAME" == true ]]; then
 
   # Strict char validator: a-zA-Z0-9_-
   valid_char() {
-    local c="$1"
-    [[ "$c" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
+    local s=$1
+    [[ $s =~ ^[A-Za-z0-9_.-]+$ ]] || return 1
     return 0
   }
 
@@ -152,7 +152,7 @@ if [[ "$NAME" == true ]]; then
   while :; do
     # Pre-fill with existing value if we had one
     name="$(gum input --placeholder 'e.g. sam' \
-      ${existing_name:+--value "$existing_name"})"
+      ${existing_name:+--value= "$existing_name"})"
 
     # If user pressed Enter on an empty input, exit gracefully
     [[ -z "${name:-}" ]] && {
@@ -161,7 +161,7 @@ if [[ "$NAME" == true ]]; then
     }
 
     if ! valid_char "$name"; then
-      gum style --foreground 196 "Invalid name. Enter a name with only these characteres a-zA-Z0-9_-"
+      gum style --foreground 196 "Invalid name. Enter a name with only these characteres A-Za-z0-9_.-"
       continue
     fi
 
