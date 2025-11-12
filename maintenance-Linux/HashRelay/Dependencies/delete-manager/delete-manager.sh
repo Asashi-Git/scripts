@@ -164,9 +164,9 @@ if [[ "$NUMBER" == true ]]; then
 
     if [[ -f "$CONFIG_FILE" ]] && grep -qE '^[[:space:]]*CHAIN_BACKUPS_NUMBER[[:space:]]*=' "$CONFIG_FILE"; then
       sudo cp -a -- "$CONFIG_FILE" "CONFIG_FILE.bak.$(date -Iseconds)"
-      sudo sed -i -E "s|^[[:space:]]*CHAIN_BACKUPS_NUMBER[[:space:]]*=.*$|NAME=$number|" "$CONFIG_FILE"
+      sudo sed -i -E "s|^[[:space:]]*CHAIN_BACKUPS_NUMBER[[:space:]]*=.*$|CHAIN_BACKUPS_NUMBER=$number|" "$CONFIG_FILE"
     else
-      printf "NAME=%s\n" "$number" | sudo tee -a "$CONFIG_FILE" >/dev/null
+      printf "CHAIN_BACKUPS_NCHAIN_BACKUPS_NUMBERR=%s\n" "$number" | sudo tee -a "$CONFIG_FILE" >/dev/null
     fi
   }
 
@@ -175,7 +175,7 @@ if [[ "$NUMBER" == true ]]; then
   gum style --border double --margin "1 2" --padding "1 2" --border-foreground 212 \
     "Welcome to $title"
 
-  # Try to read the exixting NAME from the config
+  # Try to read the exixting CHAIN_BACKUPS_NUMBER from the config
   existing_number="$(get_existing_number)"
 
   # If we already have a value, show it and ask whether to modify it
