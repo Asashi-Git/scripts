@@ -286,17 +286,17 @@ fi
 #
 # # Contain the age of each backups file # This is how the AGE_CONF file look like actually he just have this comment.
 # -nginx.conf:
-# backup-nginx.conf-56-12-22-2025-11-12.tar.gz -> AGE=0 (This is for 56 seconde 12 minute 22hour of the year 2025 November(11) the 12). This is the newest backup, he got juste backed up.
-# backup-nginx.conf-34-11-20-2025-11-12.tar.gz -> AGE=1
-# backup-nginx.conf-20-30-18-2025-11-12.tar.gz -> AGE=2
-# backup-nginx.conf-47-25-15-2025-11-12.tar.gz -> AGE=3 (This backup should be deleted be cause he just got an age of 3 and the BACKUP_NUMBER is = 3)
+# backup-nginx.conf-2025-11-12-23-09-05.tar.gz -> AGE=0 (This is for year 2025 November(11) the 12 day at 23 hours 09 minutes and 05 seconds. This is the newest backup, he got juste backed up.
+# backup-nginx.conf-2025-11-12-22-34-22.tar.gz -> AGE=1
+# backup-nginx.conf-2025-11-11-15-23-18.tar.gz -> AGE=2
+# backup-nginx.conf-2025-11-05-12-26-52.tar.gz -> AGE=3 (This backup should be deleted be cause he just got an age of 3 and the BACKUP_NUMBER is = 3)
 # -nginx: (Here that's not the nginx.conf but directory that's been backup)
-# backup-nginx-34-11-20-2025-11-12.tar.gz -> AGE=0
-# backup-nginx-24-32-14-2025-11-12.tar.gz -> AGE=1
+# backup-nginx-2025-11-10-12-14-42.tar.gz -> AGE=0
+# backup-nginx-2025-11-04-05-37-13.tar.gz -> AGE=1
 # -HashRelay:
-# backup-HashRelay-53-45-10-2025-11-10.tar.gz -> AGE=0
-# backup-HashRelay-41-32-10-2025-11-09.tar.gz -> AGE=1
-# backup-HashRelay-14-23-07-2025-10-08.tar.gz -> AGE=2
+# backup-HashRelay-2025-11-04-15-51-18.tar.gz -> AGE=0
+# backup-HashRelay-2025-10-15-20-32-47.tar.gz -> AGE=1
+# backup-HashRelay-2024-12-24-23-59-59.tar.gz -> AGE=2
 #
 # So in this example of AGE_CONF the nginx.conf backup with an age of 3 because BACKUP_NUMBER
 # been configured to 3 inside the CONFIG_FILE should be deleted.
@@ -307,3 +307,114 @@ fi
 # we already have the exact name of the file and his directory with the BACKUP_DIR variable.
 # I don't want to use another file then the AGE_CONF file because with one file it's
 # more readable and more easy for me to centralize all inside one file.
+
+# ===== Manage AGE_CONF, compute ages, and delete old backups =====
+
+# Sanity checks
+if [[ -z "${BACKUP_NUMBER:-}" ]]; then
+  echo "[!] CHAIN_BACKUPS_NUMBER not found in $CONFIG_FILE; aborting." >&2
+  exit 1
+fi
+
+if ! [[ "$BACKUP_NUMBER" =~ ^[0-9]+$ ]] || ((BACKUP_NUMBER < 1 || BACKUP_NUMBER > 100)); then
+  echo "[!] Invalid BACKUP_NUMBER='$BACKUP_NUMBER' (must be 1..100)." >&2
+  exit 1
+fi
+
+if [[ ! -d "$BACKUP_DIR" ]]; then
+  echo "[i] Backup directory '$BACKUP_DIR' does not exist yet. Nothing to do."
+  # Ensure AGE_CONF still exists with header for future runs
+  sudo mkdir -p -- "$(dirname -- "$AGE_CONF")"
+  if [[ ! -f "$AGE_CONF" ]]; then
+    printf "# Contain the age of each backups file\n" | sudo tee "$AGE_CONF" >/dev/null
+  fi
+  exit 0
+fi
+
+# Ensure AGE_CONF path exists
+sudo mkdir -p -- "$(dirname -- "$AGE_CONF")"
+
+# We will rebuild AGE_CONF from scratch based on actual files:
+tmp_age="$(mktemp)"
+trap 'rm -f -- "$tmp_age"' EXIT
+
+# Write header
+printf "# Contain the age of each backups file\n" >"$tmp_age"
+
+shopt -s nullglob
+declare -A groups # key: name, value: newline-separated "timestamp|fullpath|basename"
+# Scan backups
+for fullpath in "$BACKUP_DIR"/backup-*.tar.gz; do
+  # Handle no matches
+  [[ -e "$fullpath" ]] || break
+
+  base="$(basename -- "$fullpath")"
+  # Expect: backup-<name>-YYYY-MM-DD-HH-MM-SS.tar.gz
+  if [[ "$base" =~ ^backup-(.+)-([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2})\.tar\.gz$ ]]; then
+    name="${BASH_REMATCH[1]}"
+    ts="${BASH_REMATCH[2]}"
+    groups["$name"]+="${ts}|${fullpath}|${base}"$'\n'
+  else
+    # Skip unexpected filenames but log them
+    echo "[!] Skipping non-conforming file name: $base" >&2
+  fi
+done
+shopt -u nullglob
+
+# If no groups (no backups), still ensure AGE_CONF exists and exit
+if ((${#groups[@]} == 0)); then
+  if [[ "$VERBOSE" == true ]]; then
+    echo "[i] No backup-*.tar.gz files found under $BACKUP_DIR"
+  fi
+  sudo cp -f -- "$tmp_age" "$AGE_CONF"
+  exit 0
+fi
+
+# Process each group
+deleted_total=0
+kept_total=0
+
+for name in "${!groups[@]}"; do
+  # Print section header like "-nginx.conf:" or "-HashRelay:"
+  printf -- "-%s:\n" "$name" >>"$tmp_age"
+
+  # Sort entries by timestamp (descending: newest first).
+  # Timestamps are lexicographically sortable in the provided format.
+  mapfile -t lines < <(printf "%s" "${groups[$name]}" | sed '/^$/d' | sort -r)
+
+  age=0
+  for line in "${lines[@]}"; do
+    ts="${line%%|*}"
+    rest="${line#*|}" # fullpath|basename
+    fullpath="${rest%%|*}"
+    base="${rest##*|}"
+
+    if ((age < BACKUP_NUMBER)); then
+      # Keep this one; record in AGE_CONF
+      printf "%s -> AGE=%d\n" "$base" "$age" >>"$tmp_age"
+      ((kept_total++))
+    else
+      # Delete from disk and do not add to AGE_CONF
+      if rm -f -- "$fullpath"; then
+        ((deleted_total++))
+        [[ "$VERBOSE" == true ]] && echo "[del] Removed: $fullpath (AGE=$age >= $BACKUP_NUMBER)"
+      else
+        echo "[!] Failed to delete: $fullpath" >&2
+      fi
+    fi
+    ((age++))
+  done
+
+done
+
+# Atomically replace AGE_CONF
+if sudo cp -f -- "$tmp_age" "$AGE_CONF"; then
+  :
+else
+  echo "[!] Failed to write $AGE_CONF" >&2
+  exit 1
+fi
+
+echo "[i] AGE_CONF updated at $AGE_CONF"
+echo "[i] Kept: $kept_total, Deleted: $deleted_total"
+# ===== End AGE_CONF management =====
