@@ -14,7 +14,7 @@ if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
   exit 1
 fi
 
-# Your variables
+# Main variables
 BACKUP_CONF="/usr/local/bin/HashRelay/backups-manager/backups.conf"
 BACKUP_NAME="" # set per-line from the config
 BACKUP_PATH="" # set per-line from the config

@@ -86,7 +86,7 @@ client_configurator() {
       "Welcome to $title"
 
     # Menu
-    choice=$(printf "Configure your machine name\nConfigure the server IP\nConfigure the server Port\nSee the config file\nQuit" |
+    choice=$(printf "Configure your machine name\nConfigure the server IP\nConfigure the server Port\nConfigure the number of backups to keep onto your machine\nSee the config file\nQuit" |
       gum choose --cursor.foreground="#ff5fd2" --header "Choose an action")
     [ -z "${choice:-}" ] && exit 0
 
@@ -113,6 +113,14 @@ client_configurator() {
       fi
       if [[ "$VERBOSE" == true ]]; then
         echo "lunching the contact-port script"
+      fi
+      ;;
+    "Configure the number of backups to keep onto your machine")
+      if [[ "$DRY_RUN" == false ]]; then
+        sudo bash /usr/local/bin/HashRelay/delete-manager/delete-manager.sh --number
+      fi
+      if [[ "$VERBOSE" == true ]]; then
+        echo "lunching the delete-manager script with --number flag"
       fi
       ;;
     "See the config file")
