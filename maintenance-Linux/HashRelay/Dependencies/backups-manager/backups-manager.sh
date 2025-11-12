@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# This script is used to backup the file/directory that are put
+# inside backup.conf by the agent and compress them with tar then
+# put the backups inside the directory BACKUP_DIR
+#
+# Author: Decarnelle Samuel
+
 set -Eeuo pipefail
 IFS=$'\n\t'
 
@@ -22,7 +28,7 @@ umask 027
 mkdir -p -- "$LOG_DIR" "$BACKUP_DIR"
 # Ensure log file exists with restrictive perms
 touch -- "$LOG_FILE"
-chmod 640 -- "$LOG_FILE"
+chmod 650 -- "$LOG_FILE"
 
 # Route all stdout/stderr to both console and the log file, with timestamps
 # Uses gawk to prefix lines with a timestamp.
