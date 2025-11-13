@@ -1,23 +1,17 @@
 #!/usr/bin/env bash
-# This script purpose is to put/get the configuration CHAIN_BACKUPS_NUMBER
-# if there is no line CHAIN_BACKUPS_NUMBER the script will put it in the CONFIG_FILE
-# if there is one, he look at the number of CHAIN_BACKUPS_NUMBER and delete the older
-# backup that present inside the folder BACKUP_DIR.
-# In other word, every backup that pass the CHAIN_BACKUPS_NUMBER get deleted.
+# delete-manager.sh - Backup rotation and age management
 #
-# Example:
-# CHAIN_BACKUPS_NUMBER=3
-# backup-etc(1).tar.gz
-# backup-etc(2).tar.gz
-# backup-etc(3).tar.gz
-# then, when the backup-manager.sh script add:
-# backup-etc(4).tar.gz
-# backup-etc(1).tar.gz got automatically deleted.
+# This script manages backup retention by:
+# 1. Tracking backup ages in AGE_CONF
+# 2. Deleting backups older than CHAIN_BACKUPS_NUMBER
+# 3. Maintaining proper age ordering by timestamp
 #
 # Author: Decarnelle Samuel
 
 set -Eeuo pipefail
 IFS=$'\n\t'
+
+# =================== CONFIGURATION ===================
 
 # Ensure we are root
 if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
@@ -27,53 +21,50 @@ fi
 
 # Main variables
 BACKUP_CONF="/usr/local/bin/HashRelay/backups-manager/backups.conf"
-NEXT=/usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh
-CONFIG_FILE="/usr/local/bin/HashRelay/agent.conf" # The main config file (where we need to add the CHAIN_BACKUPS_NUMBER)
+NEXT="/usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh"
+CONFIG_FILE="/usr/local/bin/HashRelay/agent.conf"
+AGE_CONF="/usr/local/bin/HashRelay/delete-manager/age.conf"
+
+# Logging
+LOG_DIR="/var/log/HashRelay"
+LOG_FILE="${LOG_DIR}/delete.log"
+
+# Flags
 NUMBER=false
 VERBOSE=false
 
-# usage(): print help text:
+# =================== HELPER FUNCTIONS ===================
+
 usage() {
   cat <<'USAGE'
-  delete-manager.sh
-  Options:
-    --number                  Put/change the number of the client inside the file agent.conf
-    --verbose                 Extra logging
-    -h|--help                 This help
-  Environement:
-    This script is used to get the CLIENT_NAME for the backups and to
-    tar each backups file into the BACKUP_DIR.
-  Behavior:
-    Only the configuration manager and the agent call this script. You don't need to.
+delete-manager.sh - Backup Rotation Management
+
+Options:
+  --number          Configure CHAIN_BACKUPS_NUMBER in agent.conf
+  --verbose         Enable detailed logging
+  -h|--help         Show this help
+
+Environment:
+  CONFIG_FILE       Main configuration file
+  AGE_CONF          Backup age tracking file
+  BACKUP_DIR        Directory containing backups (derived from NAME)
+
+Behavior:
+  - Without flags: Manages backup rotation based on CHAIN_BACKUPS_NUMBER
+  - With --number: Interactive configuration mode (chains to next script)
+
+Example:
+  sudo ./delete-manager.sh --verbose
+  sudo ./delete-manager.sh --number
 USAGE
 }
 
-# Small wrapper for gum to keep calls short and readable
+# Small wrapper for gum
 confirm() { gum confirm "$1"; }
 
-# Parse CLI arguments in a loop until all are consumed
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-  --number)
-    NUMBER=true # Ask for the client number
-    shift
-    ;;
-  --verbose)
-    VERBOSE=true # Extra logging
-    shift
-    ;;
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *)
-    echo "[!] Unknow arg: $1"
-    usage
-    exit 1
-    ;;
-  esac
-done
+# =================== CONFIGURATION EXTRACTION ===================
 
+# Extract NAME from CONFIG_FILE
 get_existing_name() {
   [[ -f "$CONFIG_FILE" ]] || {
     echo ""
@@ -88,12 +79,8 @@ get_existing_name() {
   }
 
   line="${line#*=}"
-
-  # Trim leading/trailing whitespace
   line="${line#"${line%%[![:space:]]*}"}" # ltrim
   line="${line%"${line##*[![:space:]]}"}" # rtrim
-
-  # Remove surrounding single/double quotes, if any
   line="${line%\"}"
   line="${line#\"}"
   line="${line%\'}"
@@ -102,141 +89,8 @@ get_existing_name() {
   echo "$line"
 }
 
-# Get the name for the path of the backup path
-USER_PATH_NAME=$(get_existing_name)
-BACKUP_DIR="/home/sam/backups/$USER_PATH_NAME" # will be changed in the release from sam to HashRelay
-
-# Only if --number is invoked
-if [[ "$NUMBER" == true ]]; then
-  if [[ -f "$CONFIG_FILE" ]]; then
-    if [[ "$VERBOSE" == true ]]; then
-      echo "The configuration file exist !"
-    else
-      echo "Configuration file not found !"
-    fi
-  fi
-
-  get_existing_number() {
-    [[ -f "$CONFIG_FILE" ]] || {
-      echo ""
-      return
-    }
-
-    local line
-    line="$(grep -E '^[[:space:]]*CHAIN_BACKUPS_NUMBER[[:space:]]*=' "$CONFIG_FILE" | tail -n1 || true)"
-    [[ -z "$line" ]] && {
-      echo ""
-      return
-    }
-
-    line="${line#*=}"
-
-    # Trim leading/trailing whitespace
-    line="${line#"${line%%[![:space:]]*}"}" # ltrim
-    line="${line%"${line##*[![:space:]]}"}" # rtrim
-
-    # Remove surrounding single/double quotes, if any
-    line="${line%\"}"
-    line="${line#\"}"
-    line="${line%\'}"
-    line="${line#\'}"
-
-    echo "$line"
-  }
-
-  # Strict char validator: a-zA-Z0-9_-
-  valid_num() {
-    local n=$1
-    [[ "$n" =~ ^[0-9]+$ ]] || return 1
-    ((n >= 1 && n <= 100)) || return 1 # Can't keep 100 backups of the same file
-    return 0
-  }
-
-  # Persist NUMBER into CONFIG_FILE:
-  # - Ensure directory exists (With sudo, since path is under /usr/local/bin/)
-  # - If NUMBER= exists, make a timestamped backup and replace it in-place
-  # - Otherwise, append a new NUMBER line
-  set_num() {
-    local number="$1"
-
-    sudo mkdir -p "$(dirname -- "$CONFIG_FILE")"
-
-    if [[ -f "$CONFIG_FILE" ]] && grep -qE '^[[:space:]]*CHAIN_BACKUPS_NUMBER[[:space:]]*=' "$CONFIG_FILE"; then
-      sudo cp -a -- "$CONFIG_FILE" "CONFIG_FILE.bak.$(date -Iseconds)"
-      sudo sed -i -E "s|^[[:space:]]*CHAIN_BACKUPS_NUMBER[[:space:]]*=.*$|CHAIN_BACKUPS_NUMBER=$number|" "$CONFIG_FILE"
-    else
-      printf "CHAIN_BACKUPS_NUMBER=%s\n" "$number" | sudo tee -a "$CONFIG_FILE" >/dev/null
-    fi
-  }
-
-  title="Chain Backups Number Configurator"
-  # Nice welcome banner
-  gum style --border double --margin "1 2" --padding "1 2" --border-foreground 212 \
-    "Welcome to $title"
-
-  # Try to read the exixting CHAIN_BACKUPS_NUMBER from the config
-  existing_number="$(get_existing_number)"
-
-  # If we already have a value, show it and ask whether to modify it
-  if [[ -n "$existing_number" ]]; then
-    gum style --foreground 212 "Current Number: $existing_number"
-
-    if ! confirm "Do you want to modify the Number?"; then
-      echo "Keeping existing Number: $existing_number"
-      exec sudo bash "$NEXT"
-    fi
-  fi
-
-  # Prompt loop until we get a valid Number (or Number exist)
-  while :; do
-    # Pre-fill with existing value if we had one
-    number="$(gum input --placeholder 'e.g. 3' \
-      ${existing_number:+--value="$existing_number"})"
-
-    # If user pressed Enter on an empty input, exit gracefully
-    [[ -z "${number:-}" ]] && {
-      echo "No input provided. Exiting."
-      exit 0
-    }
-
-    if ! valid_num "$number"; then
-      gum style --foreground 196 "Invalid number. Enter a number with only these characteres 0-9"
-      continue
-    fi
-
-    NUMBER="$number"
-    break
-  done
-
-  # Persist the chosen number into the config
-  set_num "$NUMBER"
-  echo "Your number is set to: $NUMBER"
-
-  # Finally, chain to the client script: exec replace the current process
-  exec sudo bash "$NEXT"
-fi
-
-# Logging
-LOG_DIR="/var/log/HashRelay"
-LOG_FILE="${LOG_DIR}/delete.log"
-umask 027
-mkdir -p -- "$LOG_DIR"
-# Ensure log file exist with restrictive perms
-touch -- "$LOG_FILE"
-chmod 655 -- "$LOG_FILE" "$LOG_DIR"
-
-# Route all stdout/stderr to both console and the log file, with timestamps
-# Use gawk to prefix line with a timestamps.
-exec > >(awk '{ print strftime("[%Y-%m-%d %H:%M:%S%z]"), $0; fflush(); }' | tee -a "$LOG_FILE") 2>&1
-
-echo "=== START delete run ==="
-echo "Using config: $BACKUP_CONF"
-echo "Using config: $CONFIG_FILE"
-echo "Destination:  $BACKUP_DIR"
-echo "Log file:     $LOG_FILE"
-
-# Get the number that the user choose during it's configuration inside the CONFIG_FILE
-choosen_number() {
+# Extract CHAIN_BACKUPS_NUMBER from CONFIG_FILE
+get_existing_number() {
   [[ -f "$CONFIG_FILE" ]] || {
     echo ""
     return
@@ -250,12 +104,8 @@ choosen_number() {
   }
 
   line="${line#*=}"
-
-  # Trim leading/trailing whitespace
-  line="${line#"${line%%[![:space:]]*}"}" # ltrim
-  line="${line%"${line##*[![:space:]]}"}" # rtrim
-
-  # Remove surrounding single/double quotes, if any
+  line="${line#"${line%%[![:space:]]*}"}"
+  line="${line%"${line##*[![:space:]]}"}"
   line="${line%\"}"
   line="${line#\"}"
   line="${line%\'}"
@@ -264,75 +114,172 @@ choosen_number() {
   echo "$line"
 }
 
-# Placing the backup number inside a variable
-BACKUP_NUMBER="$(choosen_number)"
-AGE_CONF="/usr/local/bin/HashRelay/delete-manager/age.conf"
+# Validate number: 1-100
+valid_num() {
+  local n=$1
+  [[ "$n" =~ ^[0-9]+$ ]] || return 1
+  ((n >= 1 && n <= 100)) || return 1
+  return 0
+}
 
-# Printing the choosen_number
-if [[ "$VERBOSE" == true ]]; then
-  echo "Inside the configuration, the user choose to backup $BACKUP_NUMBER iteration of the same file"
+# Persist CHAIN_BACKUPS_NUMBER to CONFIG_FILE
+set_num() {
+  local number="$1"
+
+  sudo mkdir -p "$(dirname -- "$CONFIG_FILE")"
+
+  if [[ -f "$CONFIG_FILE" ]] && grep -qE '^[[:space:]]*CHAIN_BACKUPS_NUMBER[[:space:]]*=' "$CONFIG_FILE"; then
+    # Backup and update existing
+    sudo cp -a -- "$CONFIG_FILE" "${CONFIG_FILE}.bak.$(date +%s)"
+    sudo sed -i -E "s|^[[:space:]]*CHAIN_BACKUPS_NUMBER[[:space:]]*=.*$|CHAIN_BACKUPS_NUMBER=$number|" "$CONFIG_FILE"
+  else
+    # Append new
+    printf "CHAIN_BACKUPS_NUMBER=%s\n" "$number" | sudo tee -a "$CONFIG_FILE" >/dev/null
+  fi
+}
+
+# =================== PARSE ARGUMENTS ===================
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --number)
+    NUMBER=true
+    shift
+    ;;
+  --verbose)
+    VERBOSE=true
+    shift
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    echo "[!] Unknown argument: $1" >&2
+    usage
+    exit 1
+    ;;
+  esac
+done
+
+# =================== INTERACTIVE CONFIGURATION MODE ===================
+
+if [[ "$NUMBER" == true ]]; then
+  title="Chain Backups Number Configurator"
+
+  # Welcome banner
+  gum style --border double --margin "1 2" --padding "1 2" --border-foreground 212 \
+    "Welcome to $title"
+
+  # Check config file exists
+  if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "[!] Configuration file not found: $CONFIG_FILE" >&2
+    exit 1
+  fi
+
+  [[ "$VERBOSE" == true ]] && echo "[i] Configuration file exists: $CONFIG_FILE"
+
+  # Get existing number
+  existing_number="$(get_existing_number)"
+
+  # If exists, ask if user wants to modify
+  if [[ -n "$existing_number" ]]; then
+    gum style --foreground 212 "Current CHAIN_BACKUPS_NUMBER: $existing_number"
+
+    if ! confirm "Do you want to modify this number?"; then
+      echo "[i] Keeping existing number: $existing_number"
+      [[ -f "$NEXT" ]] && exec sudo bash "$NEXT"
+      exit 0
+    fi
+  fi
+
+  # Prompt for new number
+  while :; do
+    number="$(gum input --placeholder 'Enter number (1-100), e.g. 3' \
+      ${existing_number:+--value="$existing_number"})"
+
+    [[ -z "${number:-}" ]] && {
+      echo "[!] No input provided. Exiting."
+      exit 0
+    }
+
+    if ! valid_num "$number"; then
+      gum style --foreground 196 "❌ Invalid! Enter a number between 1 and 100"
+      continue
+    fi
+
+    break
+  done
+
+  # Save and confirm
+  set_num "$number"
+  gum style --foreground 82 "✓ CHAIN_BACKUPS_NUMBER set to: $number"
+
+  # Chain to next script
+  [[ -f "$NEXT" ]] && exec sudo bash "$NEXT"
+  exit 0
 fi
 
-# This is the part of the script where I need help:
-# This is how the AGE_CONF file should look like with an BACKUP_NUMBER of 3:
-#
-# # Contain the age of each backups file # This is how the AGE_CONF file look like actually he just have this comment.
-# -nginx.conf: <- this is a "BACKUP_NAME" BACKUP_NAME always have this format "-$BACKUP_NAME:\n"
-# backup-nginx.conf-2025-11-12-23-09-05.tar.gz -> AGE=0 (This is for year 2025 November(11) the 12 day at 23 hours 09 minutes and 05 seconds. This is the newest backup, he got juste backed up.
-# backup-nginx.conf-2025-11-12-22-34-22.tar.gz -> AGE=1
-# backup-nginx.conf-2025-11-11-15-23-18.tar.gz -> AGE=2
-# backup-nginx.conf-2025-11-05-12-26-52.tar.gz -> AGE=3 (This backup should be deleted be cause he just got an age of 3 and the BACKUP_NUMBER is = 3)
-# -nginx: (Here that's not the nginx.conf but directory that's been backup)
-# backup-nginx-2025-11-10-12-14-42.tar.gz -> AGE=0
-# backup-nginx-2025-11-04-05-37-13.tar.gz -> AGE=1
-# -HashRelay:
-# backup-HashRelay-2025-11-04-15-51-18.tar.gz -> AGE=0
-# backup-HashRelay-2025-10-15-20-32-47.tar.gz -> AGE=1
-# backup-HashRelay-2024-12-24-23-59-59.tar.gz -> AGE=2
-#
-# So in this example of AGE_CONF the nginx.conf backup with an age of 3 because BACKUP_NUMBER
-# been configured to 3 inside the CONFIG_FILE should be deleted.
-# The next time the user do an backup of nginx.conf, the backup with the age of 2
-# should get an age of 3 and then should be deleted too. They should be deleted
-# from the AGE_CONF and inside the BACKUP_DIR. What's good with this method is
-# that is easy for us to delete the real backup file inside the BACKUP_DIR because
-# we already have the exact name of the file and his directory with the BACKUP_DIR variable.
-# I don't want to use another file then the AGE_CONF file because with one file it's
-# more readable and more easy for me to centralize all inside one file.
+# =================== AUTOMATED MODE - SETUP LOGGING ===================
 
-# So to make it work we need to make all theses steps in order:
-#
-# 1- get_actual_backups():
-# Create a function that look at the BACKUP_DIR to store all of the actual backups
-#
-# 2- create_backups_name():
-# Create a function that look at the AGE_CONF file to see if the BACKUP_NAME already
-# exist inside the file. We can easily spot if because all BACKUP_NAME have a "-BACKUP_NAME:"
-# format inside the AGE_CONF file. If there is no BACKUP_NAME match it create the BACKUP_NAME.
-#
-# 3- append_new_backups():
-# Create a function that look at the AGE_CONF file to see if the backups inside BACKUP_DIR have
-# already been reported throug the file. If there is no BACKUP_NAME match it call the precedent
-# function to create it. If there already a BACKUP_NAME it add the new backups under the
-# BACKUP_NAME.
-#
-# 4- make_age():
-# Create a function that look at the AGE_CONF and via the date of the backup, determine
-# the age of the backups inside the AGE_CONF file. The most recent file get an age of 0.
-# the second most recent get age++ etc... The age must be print inside the AGE_CONF file
-# to the left of each baskup like showed in the example AGE_CONF file.
-#
-# 5- delete_old():
-# Create a function that look at the AGE_CONF file and for each BACKUP_NAME go through the
-# age of all the backup. If a backup have an age >= of the BACKUP_NUMBER he got deleted
-# and his line inside the AGE_CONF got deleted too.
-# This function should do that for all children of BACKUP_NAME.
-#
+umask 027
+mkdir -p -- "$LOG_DIR"
+touch -- "$LOG_FILE"
+chmod 640 -- "$LOG_FILE"
+chmod 750 -- "$LOG_DIR"
 
-# =================== Helpers (safe, minimal) ===================
+# Redirect all output to log with timestamps
+exec > >(awk '{ print strftime("[%Y-%m-%d %H:%M:%S]"), $0; fflush(); }' | tee -a "$LOG_FILE") 2>&1
 
-# Expected basename: backup-<name>-YYYY-MM-DD-HH-MM-SS.tar.gz
-# Output: "<name>\t<ts>"    Return 0 if matches, else 1
+echo "╔════════════════════════════════════════╗"
+echo "║   DELETE-MANAGER - Backup Rotation    ║"
+echo "╚════════════════════════════════════════╝"
+echo ""
+echo "Config file:      $CONFIG_FILE"
+echo "Age tracking:     $AGE_CONF"
+echo "Log file:         $LOG_FILE"
+
+# =================== DERIVE BACKUP_DIR ===================
+
+USER_PATH_NAME=$(get_existing_name)
+
+if [[ -z "$USER_PATH_NAME" ]]; then
+  echo "[!] ERROR: NAME not found in $CONFIG_FILE" >&2
+  echo "[!] Cannot determine BACKUP_DIR. Exiting." >&2
+  exit 1
+fi
+
+BACKUP_DIR="/home/sam/backups/$USER_PATH_NAME"
+echo "Backup directory: $BACKUP_DIR"
+
+if [[ ! -d "$BACKUP_DIR" ]]; then
+  echo "[!] WARNING: BACKUP_DIR does not exist: $BACKUP_DIR" >&2
+  echo "[i] Creating directory..."
+  mkdir -p -- "$BACKUP_DIR"
+fi
+
+# =================== GET CHAIN_BACKUPS_NUMBER ===================
+
+BACKUP_NUMBER="$(get_existing_number)"
+
+if [[ -z "$BACKUP_NUMBER" ]]; then
+  echo "[!] ERROR: CHAIN_BACKUPS_NUMBER not found in $CONFIG_FILE" >&2
+  echo "[!] Run with --number to configure it first." >&2
+  exit 1
+fi
+
+if ! valid_num "$BACKUP_NUMBER"; then
+  echo "[!] ERROR: Invalid CHAIN_BACKUPS_NUMBER: $BACKUP_NUMBER" >&2
+  exit 1
+fi
+
+echo "Retention policy:  Keep last $BACKUP_NUMBER backup(s) per item"
+echo ""
+
+# =================== BACKUP PARSING ===================
+
+# Parse filename: backup-<name>-YYYY-MM-DD-HH-MM-SS.tar.gz
+# Returns: "<name>\t<timestamp>" or fails with return 1
 parse_backup_basename() {
   local base="$1"
   if [[ "$base" =~ ^backup-(.+)-([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2})\.tar\.gz$ ]]; then
@@ -342,222 +289,262 @@ parse_backup_basename() {
   return 1
 }
 
-# Create AGE_CONF file and parent dir if missing
+# Convert timestamp to Unix epoch for sorting
+# Format: YYYY-MM-DD-HH-MM-SS -> epoch seconds
+ts_to_epoch() {
+  local ts="$1"
+  # Convert YYYY-MM-DD-HH-MM-SS to "YYYY-MM-DD HH:MM:SS"
+  local dt="${ts:0:10} ${ts:11:2}:${ts:14:2}:${ts:17:2}"
+  date -d "$dt" +%s 2>/dev/null || echo "0"
+}
+
+# =================== AGE_CONF MANAGEMENT ===================
+
+# Ensure AGE_CONF file exists
 ensure_age_conf() {
   mkdir -p -- "$(dirname -- "$AGE_CONF")"
   if [[ ! -f "$AGE_CONF" ]]; then
-    echo "# Contain the age of each backups file" >"$AGE_CONF"
+    echo "# Backup age tracking - Generated by delete-manager.sh" >"$AGE_CONF"
+    [[ "$VERBOSE" == true ]] && echo "[i] Created AGE_CONF: $AGE_CONF"
   fi
 }
 
-# Return 0 if a section "-<name>:" exists
+# Check if section "-<name>:" exists
 has_section() {
-  ensure_age_conf
   local name="$1"
-  grep -q -E "^-${name}:" "$AGE_CONF"
+  grep -q -E "^-${name}:$" "$AGE_CONF" 2>/dev/null
 }
 
-# Return 0 if an entry exists (exact basename) within section -<name>:
+# Check if backup entry exists in section
 entry_exists_in_section() {
-  ensure_age_conf
   local name="$1" base="$2"
   awk -v sec="-$name:" -v base="$base" '
-    $0==sec {in=1; next}
-    in && /^-/ {in=0}
-    in && $0 ~ ("^" base " -> ") {found=1; exit}
-    END {exit !found}
-  ' "$AGE_CONF"
+    $0 == sec { insec=1; next }
+    insec && /^-.*:$/ { insec=0 }
+    insec && $1 == base { found=1; exit }
+    END { exit !found }
+  ' "$AGE_CONF" 2>/dev/null
 }
 
-# Append a new line into section -<name>: creating the section if needed
-append_line_to_section() {
-  ensure_age_conf
-  local name="$1" line="$2"
-  if ! has_section "$name"; then
-    {
-      echo "-${name}:"
-      echo "$line"
-    } >>"$AGE_CONF"
-    return 0
-  fi
-  # Insert at end of the section (before the next section or EOF)
-  awk -v sec="-$name:" -v newline="$line" '
-    BEGIN{in=0}
-    {
-      if ($0==sec){in=1; print; next}
-      if (in && /^-/){in=0; print newline; print; next}
-      print
-    }
-    END{
-      if(in){print newline}
-    }
-  ' "$AGE_CONF" >"${AGE_CONF}.tmp" && mv -- "${AGE_CONF}.tmp" "$AGE_CONF"
-}
+# =================== 1) GET_ACTUAL_BACKUPS ===================
 
-# =================== Core functions ===================
-
-# 1) Enumerate actual backup files present in BACKUP_DIR
-# Output TSV: "<name>\t<ts>\t<fullpath>\t<basename>"
+# Scan BACKUP_DIR and emit TSV: name<TAB>timestamp<TAB>epoch<TAB>fullpath<TAB>basename
 get_actual_backups() {
+  [[ -d "$BACKUP_DIR" ]] || {
+    [[ "$VERBOSE" == true ]] && echo "[i] BACKUP_DIR does not exist yet: $BACKUP_DIR"
+    return 0
+  }
+
   shopt -s nullglob
-  local f base parsed name ts
-  for f in "$BACKUP_DIR"/backup-*.tar.gz; do
-    base="${f##*/}"
+  local full base parsed name ts epoch
+
+  for full in "$BACKUP_DIR"/backup-*.tar.gz; do
+    [[ -e "$full" ]] || break
+
+    base="$(basename -- "$full")"
+
     if parsed="$(parse_backup_basename "$base")"; then
       name="${parsed%%$'\t'*}"
       ts="${parsed##*$'\t'}"
-      printf "%s\t%s\t%s\t%s\n" "$name" "$ts" "$f" "$base"
+      epoch="$(ts_to_epoch "$ts")"
+
+      printf "%s\t%s\t%s\t%s\t%s\n" "$name" "$ts" "$epoch" "$full" "$base"
+    else
+      [[ "$VERBOSE" == true ]] && echo "[skip] Non-conforming filename: $base"
     fi
-  done | sort -t $'\t' -k1,1 -k2,2r
+  done
+
+  shopt -u nullglob
 }
 
-# 2) Append unseen files to AGE_CONF with AGE=? under the right section
+# =================== 2) CREATE_BACKUPS_NAME ===================
+
+# Ensure section "-<name>:" exists in AGE_CONF
+create_backups_name() {
+  local name="$1"
+
+  if ! has_section "$name"; then
+    echo "-${name}:" >>"$AGE_CONF"
+    [[ "$VERBOSE" == true ]] && echo "[+] Created section: -${name}:"
+  fi
+}
+
+# =================== 3) APPEND_NEW_BACKUPS ===================
+
+# Add new backup entries to AGE_CONF under their sections
 append_new_backups() {
   ensure_age_conf
-  local line name ts full base
-  while IFS=$'\t' read -r name ts full base; do
+
+  local name ts epoch full base
+  local sections_created=0 entries_added=0
+
+  # Process all backups
+  while IFS=$'\t' read -r name ts epoch full base; do
+    # Ensure section exists
+    if ! has_section "$name"; then
+      create_backups_name "$name"
+      ((sections_created++))
+    fi
+
+    # Add entry if not exists
     if ! entry_exists_in_section "$name" "$base"; then
-      append_line_to_section "$name" "$base -> AGE=?"
-      [[ "${VERBOSE:-false}" == true ]] && echo "[+] added $base under -$name:"
+      # Append under section (before next section or EOF)
+      awk -v sec="-$name:" -v entry="$base -> AGE=?" '
+        BEGIN { done=0 }
+        $0 == sec { print; insec=1; next }
+        insec && /^-.*:$/ && !done { print entry; done=1; insec=0 }
+        { print }
+        END { if (insec && !done) print entry }
+      ' "$AGE_CONF" >"$AGE_CONF.tmp"
+
+      mv -f -- "$AGE_CONF.tmp" "$AGE_CONF"
+      ((entries_added++))
+      [[ "$VERBOSE" == true ]] && echo "[+] Added: $base under -${name}:"
     fi
   done < <(get_actual_backups)
+
+  echo "[i] Sections created: $sections_created, Entries added: $entries_added"
 }
 
-# 3) Recompute AGE for every section based on files that actually exist
-#    AGE=0 is newest. Missing files are dropped. New sections created if files exist but section missing.
+# =================== 4) MAKE_AGE ===================
+
+# Recompute ages based on timestamps (newest = AGE=0)
 make_age() {
   ensure_age_conf
 
-  # Collect unique names from both filesystem and existing sections
-  declare -A seen
-  # names from filesystem
-  while IFS=$'\t' read -r name _ts _full _base; do
-    seen["$name"]=1
-  done < <(get_actual_backups)
+  local tmp
+  tmp="$(mktemp)"
 
-  # names from existing sections
-  while IFS= read -r line; do
-    [[ "$line" =~ ^-([^:]+):$ ]] && seen["${BASH_REMATCH[1]}"]=1
-  done <"$AGE_CONF"
-
-  # Rebuild new AGE_CONF deterministically
   {
-    echo "# Contain the age of each backups file"
-    for name in "${!seen[@]}"; do
-      echo "-${name}:"
-      # Sort by timestamp desc and emit AGE indexes
-      local idx=0
-      while IFS=$'\t' read -r n ts full base; do
-        [[ "$n" != "$name" ]] && continue
-        # keep only files that still exist
-        if [[ -f "$full" ]]; then
-          echo "${base} -> AGE=${idx}"
-          ((idx++))
-        fi
-      done < <(get_actual_backups)
-    done
-  } >"${AGE_CONF}.tmp"
+    echo "# Backup age tracking - Updated: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo ""
 
-  mv -- "${AGE_CONF}.tmp" "$AGE_CONF"
-  [[ "${VERBOSE:-false}" == true ]] && echo "[i] AGE recomputed and ${AGE_CONF} rewritten."
+    # Get all unique backup names
+    mapfile -t all_names < <(get_actual_backups | cut -f1 | sort -u)
+
+    local name
+    for name in "${all_names[@]}"; do
+      [[ -z "$name" ]] && continue
+
+      # Get all backups for this name, sorted by epoch DESC (newest first)
+      mapfile -t rows < <(
+        get_actual_backups |
+          awk -F'\t' -v n="$name" '$1 == n' |
+          sort -t$'\t' -k3,3rn
+      )
+
+      if ((${#rows[@]} == 0)); then
+        [[ "$VERBOSE" == true ]] && echo "[i] No backups found for: $name"
+        continue
+      fi
+
+      # Write section header
+      printf -- "-%s:\n" "$name"
+
+      # Assign ages
+      local age=0 row base
+      for row in "${rows[@]}"; do
+        base="$(echo "$row" | cut -f5)"
+        printf "%s -> AGE=%d\n" "$base" "$age"
+        ((age++))
+      done
+
+      echo "" # Blank line between sections
+    done
+  } >"$tmp"
+
+  mv -f -- "$tmp" "$AGE_CONF"
+  [[ "$VERBOSE" == true ]] && echo "[i] Ages recomputed and written to $AGE_CONF"
 }
 
-# 4) Delete files whose AGE >= BACKUP_NUMBER, then recompute AGE
+# =================== 5) DELETE_OLD ===================
+
+# Delete backups with AGE >= BACKUP_NUMBER
 delete_old() {
   ensure_age_conf
-  local base delcount=0 miss=0
 
-  # Build deletion list from AGE_CONF
-  mapfile -t to_del < <(
+  local deleted=0 failed=0 missing=0
+
+  # Extract entries to delete: AGE >= BACKUP_NUMBER
+  mapfile -t to_delete < <(
     awk -v keep="$BACKUP_NUMBER" '
-      /^-.*:$/ {next}
-      /^[#[:space:]]*$/ {next}
+      /^-.*:$/ { next }
+      /^[#[:space:]]*$/ { next }
       {
-        if (match($0,/^([^[:space:]]+)[[:space:]]*->[[:space:]]*AGE=([0-9]+)/,a)) {
-          if (a[2] >= keep) print a[1];
+        # Match: "filename -> AGE=N"
+        if (match($0, /^([^[:space:]]+)[[:space:]]*->[[:space:]]*AGE=([0-9]+)/, arr)) {
+          if (arr[2] >= keep) {
+            print arr[1]
+          }
         }
       }
     ' "$AGE_CONF"
   )
 
-  for base in "${to_del[@]:-}"; do
-    local full="$BACKUP_DIR/$base"
-    if [[ -e "$full" ]]; then
-      if rm -f -- "$full"; then
-        ((delcount++))
-        [[ "${VERBOSE:-false}" == true ]] && echo "[del] $full (AGE >= $BACKUP_NUMBER)"
-      else
-        echo "[!] Failed to delete $full" >&2
-      fi
+  if ((${#to_delete[@]} == 0)); then
+    echo "[i] No backups to delete (all within retention policy)"
+    return 0
+  fi
+
+  echo "[i] Found ${#to_delete[@]} backup(s) exceeding retention policy"
+
+  # Delete each file
+  local base full
+  for base in "${to_delete[@]}"; do
+    full="$BACKUP_DIR/$base"
+
+    if [[ ! -e "$full" ]]; then
+      [[ "$VERBOSE" == true ]] && echo "[warn] Already deleted: $base"
+      ((missing++))
+      continue
+    fi
+
+    if rm -f -- "$full"; then
+      echo "[-] Deleted: $base"
+      ((deleted++))
     else
-      ((miss++))
-      [[ "${VERBOSE:-false}" == true ]] && echo "[warn] Missing on disk: $full"
+      echo "[!] Failed to delete: $base" >&2
+      ((failed++))
     fi
   done
 
+  # Rebuild AGE_CONF to remove deleted entries
+  echo "[i] Rebuilding age tracking..."
   make_age
-  [[ "${VERBOSE:-false}" == true ]] && echo "[i] Deleted: $delcount; Missing: $miss"
+
+  echo ""
+  echo "Deletion summary:"
+  echo "  ✓ Deleted:    $deleted"
+  echo "  ✗ Failed:     $failed"
+  echo "  ⚠ Missing:    $missing"
 }
 
-# =================== Runtime / entrypoint (auto) ===================
+# =================== MAIN EXECUTION ===================
 
-# Optional: load a config file with KEY=VALUE lines
-load_config() {
-  [[ -n "${CONFIG_FILE:-}" && -f "$CONFIG_FILE" ]] || return 0
-  # shellcheck disable=SC1090
-  . "$CONFIG_FILE"
-}
+echo "Starting backup rotation process..."
+echo ""
 
-# Validate and derive variables
-prepare_env() {
-  : "${AGE_CONF:=/usr/local/bin/HashRelay/delete-manager/age.conf}"
+# Step 1: Discover current backups
+echo "[1/4] Scanning backup directory..."
+backup_count=$(get_actual_backups | wc -l)
+echo "      Found $backup_count backup file(s)"
 
-  # Allow CHAIN_BACKUPS_NUMBER as fallback if BACKUP_NUMBER not set
-  if [[ -z "${BACKUP_NUMBER:-}" && -n "${CHAIN_BACKUPS_NUMBER:-}" ]]; then
-    BACKUP_NUMBER="$CHAIN_BACKUPS_NUMBER"
-  fi
+# Step 2: Update AGE_CONF with new backups
+echo "[2/4] Updating age tracking file..."
+append_new_backups
 
-  [[ -d "${BACKUP_DIR:-}" ]] || {
-    echo "[!] BACKUP_DIR is not set or not a directory" >&2
-    exit 1
-  }
-  [[ "${BACKUP_NUMBER:-}" =~ ^[0-9]+$ ]] || {
-    echo "[!] BACKUP_NUMBER is missing or invalid" >&2
-    exit 1
-  }
-}
+# Step 3: Recalculate ages
+echo "[3/4] Recalculating backup ages..."
+make_age
 
-require_root() {
-  if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
-    echo "This script must be run as root (use sudo)." >&2
-    exit 1
-  fi
-}
+# Step 4: Delete old backups
+echo "[4/4] Applying retention policy..."
+delete_old
 
-main() {
-  # Safer error reporting
-  trap 's=$?; echo "[!] Error on line $LINENO (exit $s)" >&2; exit $s' ERR
+echo ""
+echo "╔════════════════════════════════════════╗"
+echo "║     Backup Rotation Complete ✓         ║"
+echo "╚════════════════════════════════════════╝"
+echo ""
 
-  load_config
-  require_root
-  prepare_env
-  ensure_age_conf
-
-  [[ "${VERBOSE:-false}" == true ]] && {
-    echo "[i] BACKUP_DIR=$BACKUP_DIR"
-    echo "[i] AGE_CONF=$AGE_CONF"
-    echo "[i] BACKUP_NUMBER=$BACKUP_NUMBER"
-  }
-
-  # Automatic pipeline
-  append_new_backups
-  make_age
-  delete_old
-
-  [[ "${VERBOSE:-false}" == true ]] && echo "[i] Completed successfully."
-}
-
-# Run only if executed directly (not sourced)
-if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  main "$@"
-fi
+exit 0
