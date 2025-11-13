@@ -337,7 +337,7 @@ get_actual_files() {
   fi
   # Populate ACTUAL_FILES with only regular files in BACKUP_DIR (non-recursive)
   mapfile -d '' -t ACTUAL_FILES < <(
-    find "$BACKUP_DIR" -maxdepth 1 -type f -printf '%f\0' | sort -z -r # Sort in reverse
+    find "$BACKUP_DIR" -maxdepth 1 -type f -printf '%f\0' | sort -z #-r # Sort in reverse
   )
   printf '%s\n' "${ACTUAL_FILES[@]}"
 }
@@ -437,7 +437,7 @@ get_backup_name() {
     printf 'Done. Added %d entr%s.\n' "$added" $([[ $added -eq 1 ]] && echo "y" || echo "ies")
   fi
 }
-get_backup_name
+#get_backup_name
 
 # append_new_backups is a function that get the output of get_actual_files and
 # if the file name is new append the full name of the backup under it's
@@ -477,7 +477,7 @@ append_new_backups() {
 
     # If the exact filename is already present anywhere, skip
     if grep -qxF -- "$base" "$AGE_CONF"; then
-      ((skipped++))
+      ((skipped++)) || true
       [[ "$VERBOSE" == true ]] && printf 'Already present, skip: %s\n' "$base"
       continue
     fi
@@ -510,6 +510,7 @@ append_new_backups() {
   [[ "$VERBOSE" == true ]] && printf 'append_new_backups done. Added %d, skipped %d.\n' "$added" "$skipped"
   return 0
 }
+append_new_backups
 
 # Finish the log
 echo "=== END Delete Run ==="
