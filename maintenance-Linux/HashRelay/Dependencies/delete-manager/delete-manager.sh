@@ -376,7 +376,6 @@ format_file_name() {
 
   return 0
 }
-#format_file_name
 
 get_backup_name() {
   # Look if the file exist
@@ -410,7 +409,8 @@ get_backup_name() {
     return 1
   }
 
-  local name pattern added=0
+  local name pattern
+  local -i added=0
   for name in "${BACKUP_NAMES[@]}"; do
     pattern="-$name:"
     if grep -qxF -- "$pattern" "$AGE_CONF"; then
@@ -422,12 +422,16 @@ get_backup_name() {
         printf 'ERROR: failed to append "%s" to %s\n' "$pattern" "$AGE_CONF" >&2
         return 1
       }
-      ((added++))
+      ((added++)) || true
       if [[ "$VERBOSE" == true ]]; then
         printf 'Appended missing entry: %s\n' "$pattern"
       fi
     fi
   done
+
+  if [[ "$VERBOSE" == true ]]; then
+    printf 'Done. Added %d entr%s.\n' "$added" $([[ $added -eq 1 ]] && echo "y" || echo "ies")
+  fi
 }
 get_backup_name
 
