@@ -437,7 +437,6 @@ get_backup_name() {
     printf 'Done. Added %d entr%s.\n' "$added" $([[ $added -eq 1 ]] && echo "y" || echo "ies")
   fi
 }
-#get_backup_name
 
 # append_new_backups is a function that get the output of get_actual_files and
 # if the file name is new append the full name of the backup under it's
@@ -511,6 +510,12 @@ append_new_backups() {
   return 0
 }
 append_new_backups
+
+# make_age() is a function that look at the date of each backup that been append_new_backups
+# and put automatically an age for each backup. The most recent backup have an age of 0
+# and it increment for each backups of each get_backup_name.
+# Caution !!
+# The age must be placed on the right of each append_new_backups AGE=TheAgeOfTheBackup.
 
 # Finish the log
 echo "=== END Delete Run ==="
