@@ -273,19 +273,11 @@ if [[ "$VERBOSE" == true ]]; then
   echo "Inside the configuration, the user choose to backup $BACKUP_NUMBER iteration of the same file"
 fi
 
-# Read the AGE_CONF file to see the age of each backup
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! MUST BE DONE
-
-# Add the backup file inside the AGE_CONF if it's a new backup file
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! MUST BE DONE
-
-# If the name of the backup already exist, append to the backup name section
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! MUST BE DONE
-
+# This is the part of the script where I need help:
 # This is how the AGE_CONF file should look like with an BACKUP_NUMBER of 3:
 #
 # # Contain the age of each backups file # This is how the AGE_CONF file look like actually he just have this comment.
-# -nginx.conf:
+# -nginx.conf: <- this is a "BACKUP_NAME" BACKUP_NAME always have this format "-$BACKUP_NAME:\n"
 # backup-nginx.conf-2025-11-12-23-09-05.tar.gz -> AGE=0 (This is for year 2025 November(11) the 12 day at 23 hours 09 minutes and 05 seconds. This is the newest backup, he got juste backed up.
 # backup-nginx.conf-2025-11-12-22-34-22.tar.gz -> AGE=1
 # backup-nginx.conf-2025-11-11-15-23-18.tar.gz -> AGE=2
@@ -307,3 +299,244 @@ fi
 # we already have the exact name of the file and his directory with the BACKUP_DIR variable.
 # I don't want to use another file then the AGE_CONF file because with one file it's
 # more readable and more easy for me to centralize all inside one file.
+
+# So to make it work we need to make all theses steps in order:
+#
+# 1- get_actual_backups():
+# Create a function that look at the BACKUP_DIR to store all of the actual backups
+#
+# 2- create_backups_name():
+# Create a function that look at the AGE_CONF file to see if the BACKUP_NAME already
+# exist inside the file. We can easily spot if because all BACKUP_NAME have a "-BACKUP_NAME:"
+# format inside the AGE_CONF file. If there is no BACKUP_NAME match it create the BACKUP_NAME.
+#
+# 3- append_new_backups():
+# Create a function that look at the AGE_CONF file to see if the backups inside BACKUP_DIR have
+# already been reported throug the file. If there is no BACKUP_NAME match it call the precedent
+# function to create it. If there already a BACKUP_NAME it add the new backups under the
+# BACKUP_NAME.
+#
+# 4- make_age():
+# Create a function that look at the AGE_CONF and via the date of the backup, determine
+# the age of the backups inside the AGE_CONF file. The most recent file get an age of 0.
+# the second most recent get age++ etc... The age must be print inside the AGE_CONF file
+# to the left of each baskup like showed in the example AGE_CONF file.
+#
+# 5- delete_old():
+# Create a function that look at the AGE_CONF file and for each BACKUP_NAME go through the
+# age of all the backup. If a backup have an age >= of the BACKUP_NUMBER he got deleted
+# and his line inside the AGE_CONF got deleted too.
+# This function should do that for all children of BACKUP_NAME.
+#
+
+# =================== Helpers ===================
+
+# Parse backup basename into: "<name>\t<timestamp>", return 0 on success
+# Expected: backup-<name>-YYYY-MM-DD-HH-MM-SS.tar.gz
+parse_backup_basename() {
+  local base="$1"
+  if [[ "$base" =~ ^backup-(.+)-([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2})\.tar\.gz$ ]]; then
+    printf "%s\t%s\n" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+    return 0
+  fi
+  return 1
+}
+
+# Ensure AGE_CONF exists
+ensure_age_conf() {
+  mkdir -p -- "$(dirname -- "$AGE_CONF")"
+  [[ -f "$AGE_CONF" ]] || echo "# Contain the age of each backups file" >"$AGE_CONF"
+}
+
+# Return 0 if a section "-<name>:" exists
+has_section() {
+  ensure_age_conf
+  local name="$1"
+  grep -q -E "^-${name}:" "$AGE_CONF"
+}
+
+# Return 0 if a given "basename -> " entry is inside section "-<name>:"
+entry_exists_in_section() {
+  ensure_age_conf
+  local name="$1" base="$2"
+  awk -v sec="-$name:" -v base="$base" '
+    $0==sec {insec=1; next}
+    insec && /^-/ {insec=0}
+    insec && index($0, base" -> ")==1 {found=1; exit}
+    END {exit !found}
+  ' "$AGE_CONF"
+}
+
+# Append a line to a specific section, creating the section if missing
+append_line_to_section() {
+  ensure_age_conf
+  local name="$1" line="$2"
+  if ! has_section "$name"; then
+    echo "-${name}:" >>"$AGE_CONF"
+    echo "$line" >>"$AGE_CONF"
+    return 0
+  fi
+
+  # Insert inside the section, just before the next section header or EOF
+  local tmp
+  tmp="$(mktemp)"
+  awk -v sec="-$name:" -v ins="$line" '
+    BEGIN{insec=0; done=0}
+    $0==sec {print; insec=1; next}
+    insec && /^-/ && !done {print ins; done=1; insec=0}
+    {print}
+    END { if (insec && !done) print ins }
+  ' "$AGE_CONF" >"$tmp"
+  cp -f -- "$tmp" "$AGE_CONF"
+  rm -f -- "$tmp"
+}
+
+# =================== 1) get_actual_backups ===================
+# Emit TSV: name <TAB> ts <TAB> fullpath <TAB> basename
+get_actual_backups() {
+  [[ -d "$BACKUP_DIR" ]] || {
+    [[ "$VERBOSE" == true ]] && echo "[i] No BACKUP_DIR: $BACKUP_DIR"
+    return 0
+  }
+  shopt -s nullglob
+  local full base parsed
+  for full in "$BACKUP_DIR"/backup-*.tar.gz; do
+    [[ -e "$full" ]] || break
+    base="$(basename -- "$full")"
+    if parsed="$(parse_backup_basename "$base")"; then
+      # parsed = "<name>\t<timestamp>"
+      printf "%s\t%s\t%s\t%s\n" "${parsed%%$'\t'*}" "${parsed##*$'\t'}" "$full" "$base"
+    else
+      [[ "$VERBOSE" == true ]] && echo "[skip] Non-conforming: $base"
+    fi
+  done
+  shopt -u nullglob
+}
+
+# =================== 2) create_backups_name ===================
+# Ensure "-<BACKUP_NAME>:" section exists
+create_backups_name() {
+  local name="$1"
+  ensure_age_conf
+  if ! has_section "$name"; then
+    [[ "$VERBOSE" == true ]] && echo "[sec] Creating section: -$name:"
+    echo "-${name}:" >>"$AGE_CONF"
+  fi
+}
+
+# =================== 3) append_new_backups ===================
+# Add any missing file lines under their section as "basename -> AGE=?"
+append_new_backups() {
+  ensure_age_conf
+  local name _ts full base
+  local sections_added=0 appended=0
+
+  # First pass: ensure sections
+  while IFS=$'\t' read -r name _ts full base; do
+    if ! has_section "$name"; then
+      create_backups_name "$name"
+      ((sections_added++))
+    fi
+  done < <(get_actual_backups)
+
+  # Second pass: append entries that are not yet recorded
+  while IFS=$'\t' read -r name _ts full base; do
+    if ! entry_exists_in_section "$name" "$base"; then
+      [[ "$VERBOSE" == true ]] && echo "[add] $base -> AGE=? under -$name:"
+      append_line_to_section "$name" "$base -> AGE=?"
+      ((appended++))
+    fi
+  done < <(get_actual_backups)
+
+  [[ "$VERBOSE" == true ]] && echo "[i] Sections added: $sections_added, New entries appended: $appended"
+}
+
+# =================== 4) make_age ===================
+# Recompute ages from timestamps, newest AGE=0
+make_age() {
+  ensure_age_conf
+  local tmp
+  tmp="$(mktemp)"
+  {
+    echo "# Contain the age of each backups file"
+
+    # Collect names present in conf and directory
+    mapfile -t _conf_names < <(grep -E '^-.*:$' "$AGE_CONF" | sed -E 's/^-([^:]+):$/\1/' | sort -u)
+    mapfile -t _dir_names < <(get_actual_backups | cut -f1 | sort -u)
+    mapfile -t _all_names < <(printf "%s\n" "${_conf_names[@]}" "${_dir_names[@]}" | awk 'NF' | sort -u)
+
+    local name
+    for name in "${_all_names[@]}"; do
+      # rows: name<TAB>ts<TAB>full<TAB>base — sort by ts desc
+      mapfile -t _rows < <(get_actual_backups | awk -v n="$name" -F'\t' '$1==n' | sort -t $'\t' -k2,2r)
+      ((${#_rows[@]})) || {
+        [[ "$VERBOSE" == true ]] && echo "[i] Section -$name: empty, skipping" >&2
+        continue
+      }
+
+      printf -- "-%s:\n" "$name"
+      local age=0 row base _name _ts _full
+      for row in "${_rows[@]}"; do
+        IFS=$'\t' read -r _name _ts _full base <<<"$row"
+        printf "%s -> AGE=%d\n" "$base" "$age"
+        ((age++))
+      done
+    done
+  } >"$tmp"
+
+  cp -f -- "$tmp" "$AGE_CONF"
+  rm -f -- "$tmp"
+  [[ "$VERBOSE" == true ]] && echo "[i] AGE recomputed and $AGE_CONF rewritten."
+}
+
+# =================== 5) delete_old ===================
+# Delete files with AGE >= BACKUP_NUMBER and remove their lines from AGE_CONF, then re-pack ages.
+delete_old() {
+  ensure_age_conf
+
+  # Build deletion list from current AGE_CONF
+  mapfile -t _to_del < <(
+    awk -v keep="$BACKUP_NUMBER" '
+      /^-.*:$/ { next }
+      /^[#[:space:]]*$/ { next }
+      {
+        if (match($0,/^([^[:space:]]+)[[:space:]]*->[[:space:]]*AGE=([0-9]+)/,a)) {
+          if (a[2] >= keep) print a[1];
+        }
+      }
+    ' "$AGE_CONF"
+  )
+
+  local base full deleted=0 failed=0
+  for base in "${_to_del[@]}"; do
+    full="$BACKUP_DIR/$base"
+    if [[ -e "$full" ]]; then
+      if rm -f -- "$full"; then
+        ((deleted++))
+        [[ "$VERBOSE" == true ]] && echo "[del] $full (AGE >= $BACKUP_NUMBER)"
+      else
+        ((failed++))
+        echo "[!] Failed to delete $full" >&2
+      fi
+    else
+      [[ "$VERBOSE" == true ]] && echo "[warn] Already missing: $full"
+    fi
+  done
+
+  # Recompute and rewrite AGE_CONF after deletions
+  make_age
+  [[ "$VERBOSE" == true ]] && echo "[i] Deleted: $deleted, Failed: $failed"
+}
+
+# =================== Orchestrate ===================
+# Validate BACKUP_NUMBER using your variables
+if ! [[ "${BACKUP_NUMBER:-}" =~ ^[0-9]+$ ]]; then
+  echo "[!] Invalid or missing BACKUP_NUMBER from $CONFIG_FILE" >&2
+  exit 1
+fi
+
+# Pipeline (call in this order)
+get_actual_backups >/dev/null # probe / warm-up; output ignored
+append_new_backups
+make_age
+delete_old
