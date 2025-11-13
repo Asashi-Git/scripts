@@ -330,15 +330,95 @@ fi
 #
 
 ACTUAL_FILES=""
+# This function get all the name of each inside an array file inside the BACKUP_DIR
 get_actual_files() {
   if [[ "$VERBOSE" == true ]]; then
-    echo "Fetching the different backup files inside the $BACKUP_DIR"
+    echo "Fetching the different backup files inside the $BACKUP_DIR directory"
   fi
-  # Populate ACTUAL_FILES with only regular files in BACKUP_DIR (non-recursive)
-  # -print0 and mapfile with -d '' make this robust to any filename
+  # Only show the ACTUAL_FILES inside the directory, non-recursive
   mapfile -d '' -t ACTUAL_FILES < <(
-    find "$BACKUP_DIR" -maxdepth 1 -type f -print0 | sort -z
+    find "$BACKUP_DIR" -maxdepth 1 -type f -printf '%f\0' | sort -z
   )
+  echo "Founded backups files in $BACKUP_DIR directory:"
   printf '%s\n' "${ACTUAL_FILES[@]}"
 }
-get_actual_backups
+
+# This function format the output of the get_actual_files from full name to backup name
+# Fills BACKUP_NAMES with unique <NAME> extracted from backup-<NAME>-YYYY-MM-DD-HH-MM-SS.tar.gz
+format_file_name() {
+  get_actual_files || return 1
+
+  BACKUP_NAMES=()
+  local -A seen=() # for de-dup
+  local f base name
+  local re='^backup-(.+)-[0-9]{4}(-[0-9]{2}){5}\.tar\.gz$'
+
+  for f in "${ACTUAL_FILES[@]}"; do
+    base="${f##*/}"
+    if [[ $base =~ $re ]]; then
+      name="${BASH_REMATCH[1]}"
+      # add only the first time we see this name
+      if [[ -z ${seen[$name]+x} ]]; then
+        BACKUP_NAMES+=("$name")
+        seen[$name]=1
+        [[ "$VERBOSE" == true ]] && printf '%s\n' "$name"
+      fi
+    else
+      printf 'WARN: skipping non-matching file: %s\n' "$base" >&2
+    fi
+  done
+
+  # If you want to print them when not verbose:
+  [[ "$VERBOSE" != true ]] && printf '%s\n' "${BACKUP_NAMES[@]}"
+}
+
+# This function look if the AGE_CONF file contain the format_file_name
+# with this naming convention -format_file_name:
+# Uses BACKUP_NAMES from format_file_name
+# Ensures each "-<NAME>:" line exists in $AGE_CONF, appending missing ones.
+get_backup_name() {
+  # 1) Preconditions
+  [[ -z ${AGE_CONF:-} ]] && {
+    printf 'ERROR: AGE_CONF is not set.\n' >&2
+    return 1
+  }
+  [[ ! -f $AGE_CONF ]] && {
+    printf 'ERROR: AGE_CONF "%s" does not exist.\n' "$AGE_CONF" >&2
+    return 1
+  }
+  [[ ! -w $AGE_CONF ]] && {
+    printf 'ERROR: AGE_CONF "%s" is not writable.\n' "$AGE_CONF" >&2
+    return 1
+  }
+
+  [[ "$VERBOSE" == true ]] && printf 'Starting to check names against %s\n' "$AGE_CONF"
+
+  # 2) Populate BACKUP_NAMES (unique) from files in BACKUP_DIR
+  format_file_name || return 1
+
+  # 3) Optional: backup the config before modifying
+  # cp --backup=numbered -- "$AGE_CONF" "${AGE_CONF}.bak"
+
+  # 4) For each name, ensure a "-NAME:" line exists (exact match)
+  local name pattern added=0
+  for name in "${BACKUP_NAMES[@]}"; do
+    pattern="-$name:"
+    if grep -qxF -- "$pattern" "$AGE_CONF"; then
+      [[ "$VERBOSE" == true ]] && printf 'Found existing entry: %s\n' "$pattern"
+    else
+      # Append exactly one line "-NAME:" (with newline)
+      printf '%s\n' "$pattern" >>"$AGE_CONF" || {
+        printf 'ERROR: failed to append "%s" to %s\n' "$pattern" "$AGE_CONF" >&2
+        return 1
+      }
+      ((added++))
+      [[ "$VERBOSE" == true ]] && printf 'Appended missing entry: %s\n' "$pattern"
+    fi
+  done
+
+  # 5) Summary
+  if [[ "$VERBOSE" == true ]]; then
+    printf 'Done. Added %d entr%s to %s\n' "$added" $([[ $added -eq 1 ]] && echo "y" || echo "ies") "$AGE_CONF"
+  fi
+}
+get_backup_name
