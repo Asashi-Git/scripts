@@ -443,6 +443,73 @@ get_backup_name
 # if the file name is new append the full name of the backup under it's
 # get_backup_name primary section. It's sorted in reverse so the most recent
 # file should be at the top.
+append_new_backups() {
+  if [[ "$VERBOSE" == true ]]; then
+    printf 'Starting append_new_backups'
+  fi
+
+  # Make sure section headers exist for every BACKUP_NAME we currently have on disk
+  get_backup_name || {
+    printf 'ERROR: get_backup_name failed\n' >&2
+    return 1
+  }
+
+  # Populate ACTUAL_FILES (reverse-sorted, newest first)
+  get_actual_files || {
+    printf 'ERROR: get_actual_files failed\n' >&2
+    return 1
+  }
+
+  local re='^backup-(.+)-[0-9]{4}(-[0-9]{2}){5}\.tar\.gz$'
+  local f base name tmp added=0 skipped=0
+
+  [[ "$VERBOSE" == true ]] && printf 'Starting append_new_backups\n'
+
+  for f in "${ACTUAL_FILES[@]}"; do
+    base="${f##*/}"
+
+    # Only consider files that match the expected naming scheme
+    if [[ ! $base =~ $re ]]; then
+      [[ "$VERBOSE" == true ]] && printf 'warn: skipping non-matching file: %s\n' "$base" >&2
+      continue
+    fi
+    name="${BASH_REMATCH[1]}"
+
+    # If the exact filename is already present anywhere, skip
+    if grep -qxF -- "$base" "$AGE_CONF"; then
+      ((skipped++))
+      [[ "$VERBOSE" == true ]] && printf 'Already present, skip: %s\n' "$base"
+      continue
+    fi
+
+    # Insert the filename right after its section line "-$name:"
+    # Do the change via a temp file to avoid partial writes
+    tmp="$(mktemp "${TMPDIR:-/tmp}/ageconf.XXXXXXXX")" || {
+      printf 'ERROR: mktemp failed\n' >&2
+      return 1
+    }
+    awk -v section="-"$name":" -v newline="$base" '
+      {
+        print $0
+        if ($0 == section) {
+          print newline
+        }
+      }
+    ' "$AGE_CONF" >"$tmp" && mv -- "$tmp" "$AGE_CONF"
+    rc=$?
+    [[ -f $tmp ]] && rm -f -- "$tmp"
+    if ((rc != 0)); then
+      printf 'ERROR: failed to insert "%s" under section "%s"\n' "$base" "$name" >&2
+      return 1
+    fi
+
+    ((added++)) || true
+    [[ "$VERBOSE" == true ]] && printf 'Inserted: %s under -%s:\n' "$base" "$name"
+  done
+
+  [[ "$VERBOSE" == true ]] && printf 'append_new_backups done. Added %d, skipped %d.\n' "$added" "$skipped"
+  return 0
+}
 
 # Finish the log
 echo "=== END Delete Run ==="
