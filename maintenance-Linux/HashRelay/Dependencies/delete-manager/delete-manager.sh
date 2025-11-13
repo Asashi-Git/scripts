@@ -337,7 +337,7 @@ get_actual_files() {
   fi
   # Populate ACTUAL_FILES with only regular files in BACKUP_DIR (non-recursive)
   mapfile -d '' -t ACTUAL_FILES < <(
-    find "$BACKUP_DIR" -maxdepth 1 -type f -printf '%f\0' | sort -z
+    find "$BACKUP_DIR" -maxdepth 1 -type f -printf '%f\0' | sort -z -r # Sort in reverse
   )
   printf '%s\n' "${ACTUAL_FILES[@]}"
 }
@@ -377,6 +377,7 @@ format_file_name() {
   return 0
 }
 
+# get_backup_name
 get_backup_name() {
   # Look if the file exist
   if [[ -z ${AGE_CONF:-} ]]; then
@@ -422,7 +423,10 @@ get_backup_name() {
         printf 'ERROR: failed to append "%s" to %s\n' "$pattern" "$AGE_CONF" >&2
         return 1
       }
-      ((added++)) || true
+      # In bash, the arithmetic command (( expr )) returns exit status 0 if expr ≠ 0, and 1 if expr == 0.
+      # With post-increment, (( added++ )) evaluates to the old value, then increments. So when added is 0, the expression evaluates to 0 → exit status 1.
+      # If your script uses set -e (errexit), that non-zero status makes the shell abort the current command list/loop, which looks like a “crash.”
+      ((added++)) || true # So we need to put || true; else ERROR code 1
       if [[ "$VERBOSE" == true ]]; then
         printf 'Appended missing entry: %s\n' "$pattern"
       fi
@@ -434,6 +438,11 @@ get_backup_name() {
   fi
 }
 get_backup_name
+
+# append_new_backups is a function that get the output of get_actual_files and
+# if the file name is new append the full name of the backup under it's
+# get_backup_name primary section. It's sorted in reverse so the most recent
+# file should be at the top.
 
 # Finish the log
 echo "=== END Delete Run ==="
