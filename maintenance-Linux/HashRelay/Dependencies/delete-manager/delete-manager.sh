@@ -437,7 +437,6 @@ get_backup_name() {
     printf 'Done. Added %d entr%s.\n' "$added" $([[ $added -eq 1 ]] && echo "y" || echo "ies")
   fi
 }
-#get_backup_name
 
 # append_new_backups is a function that get the output of get_actual_files and
 # if the file name is new append the full name of the backup under it's
@@ -586,7 +585,6 @@ make_age() {
   }
   [[ "$VERBOSE" == true ]] && printf 'make_age: ages rewritten in-place based on current order in %s\n' "$AGE_CONF"
 }
-
 make_age
 
 delete_old() {
@@ -703,8 +701,16 @@ delete_old() {
   [[ "$VERBOSE" == true ]] && printf 'delete_old: pruned lines now; removed_on_disk=%d, missing_or_failed=%d\n' "$deleted" "$failed"
   return 0
 }
-
 delete_old
+
+# remove_unwanted_backups() is a function that look trought BACKUP_CONF and if a backup
+# does not exist anymore inside the BACKUP_CONF it get deleted, inside the AGE_CONF and
+# inside the BACKUP_DIR/BACKUP_NAME like in delete_old function.
+remove_unwanted_backups() {
+  if [[ "$VERBOSE" == true ]]; then
+    printf 'Lunching the remove_unwanted_backups function'
+  fi
+}
 
 # Finish the log
 echo "=== END Delete Run ==="
