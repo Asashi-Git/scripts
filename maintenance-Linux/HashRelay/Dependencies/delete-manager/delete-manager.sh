@@ -511,7 +511,9 @@ append_new_backups() {
 }
 append_new_backups
 
-# POSIX-ish Bash only (no awk/sed/gawk). Works on Arch bash.
+# make_age() is a function that input the age of the backup directly inside the
+# AGE_CONF file, it will be used later to delete the backup based on there age
+# and based on the BACKUP_NUMBER choosen by the user
 make_age() {
   [[ -z ${AGE_CONF:-} ]] && {
     printf 'ERROR: AGE_CONF is not set.\n' >&2
@@ -532,8 +534,12 @@ make_age() {
     return 1
   }
 
-  # Regex for backup filename: backup-<name>-YYYY-MM-DD-HH-MM-SS.tar.gz
-  # Bash [[ =~ ]] supports ERE.
+  # Regex in bash= Patterns used to match text using the [[ string=~ regex ]] operator
+  # (and tools like grep/sed/awk). Bash use POSIX ERE (Extended Regual Expressions) for =~
+  #
+  # Collation in bash= how characteres are ordered and compared according to your current
+  # locale (LC_COLLATE/LC_ALL). It affect things like sort order, [[a<b]],
+  # filename ranges like [a-z], and sometime what a "range" matches.
   local re_backup='^backup-.+-[0-9]{4}(-[0-9]{2}){5}\.tar\.gz$'
 
   local in_section=0 idx=-1 line key
@@ -550,6 +556,8 @@ make_age() {
       in_section=1
       idx=0
       # reset the per-section de-dup map
+      # de-dup = deduplication
+      # So this for loop delete the duplicate lines
       for k in "${!seen[@]}"; do unset 'seen[$k]'; done
       continue
     fi
