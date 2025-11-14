@@ -219,9 +219,9 @@ fi
 #
 # So in this script we need to create server/timer for two different script:
 #      *  If on the client:
-#           - backup-manager.sh
+#           - backup-manager.sh (With a timer of X set in the configuration)
 #      *  If on the server:
-#           - delete-manager.sh
+#           - delete-manager.sh (With a timer of X set in the configuration)
 #           - receiver.sh (With like a static timer of 20/40 secondes)
 #
 
