@@ -587,191 +587,6 @@ make_age() {
 }
 make_age
 
-# Purge backups whose name is no longer present in BACKUP_CONF.
-# Requires existing helpers:
-#   format_file_name  -> exports BACKUP_NAMES[]
-#   get_actual_files  -> exports ACTUAL_FILES[]
-#   make_age          -> rebuilds AGE indices in AGE_CONF
-# Remove backups for any <name> that is NOT present in BACKUP_CONF.
-# Does NOT modify your other helpers. Pure Bash/sed; no gawk.
-remove_unwanted_backups() {
-  [[ -z ${BACKUP_DIR:-} ]] && {
-    printf 'ERROR: BACKUP_DIR not set\n' >&2
-    return 1
-  }
-  [[ -z ${AGE_CONF:-} ]] && {
-    printf 'ERROR: AGE_CONF not set\n' >&2
-    return 1
-  }
-  [[ -z ${BACKUP_CONF:-} ]] && {
-    printf 'ERROR: BACKUP_CONF not set\n' >&2
-    return 1
-  }
-  [[ ! -d $BACKUP_DIR ]] && {
-    printf 'ERROR: BACKUP_DIR not a directory: %s\n' "$BACKUP_DIR" >&2
-    return 1
-  }
-  [[ ! -f $AGE_CONF ]] && {
-    printf 'ERROR: AGE_CONF not found: %s\n' "$AGE_CONF" >&2
-    return 1
-  }
-  [[ ! -f $BACKUP_CONF ]] && {
-    printf 'ERROR: BACKUP_CONF not found: %s\n' "$BACKUP_CONF" >&2
-    return 1
-  }
-  case "$BACKUP_DIR" in "" | "/")
-    printf 'ERROR: BACKUP_DIR unsafe: %q\n' "$BACKUP_DIR" >&2
-    return 1
-    ;;
-  esac
-
-  [[ "$VERBOSE" == true ]] && printf 'remove_unwanted_backups: start (authoritative from BACKUP_CONF)\n'
-
-  # 1) Build ALLOWED from BACKUP_CONF (authoritative)
-  #    - ignore comments/blank/whitespace
-  #    - take token before '=' as name
-  #    - strip spaces and CRLF
-  declare -A ALLOWED=()
-  local line key
-  while IFS= read -r line; do
-    # strip CR
-    line="${line//$'\r'/}"
-    # trim leading/trailing spaces
-    line="${line#"${line%%[![:space:]]*}"}"
-    line="${line%"${line##*[![:space:]]}"}"
-    # skip comments/blank
-    [[ -z $line || ${line:0:1} == "#" ]] && continue
-    # keep only lines containing '='
-    [[ $line != *"="* ]] && continue
-    key="${line%%=*}"
-    # trim again
-    key="${key#"${key%%[![:space:]]*}"}"
-    key="${key%"${key##*[![:space:]]}"}"
-    [[ -n $key ]] && ALLOWED["$key"]=1
-  done <"$BACKUP_CONF"
-
-  if [[ "$VERBOSE" == true ]]; then
-    printf 'ALLOWED (from BACKUP_CONF):'
-    for key in "${!ALLOWED[@]}"; do printf ' %s' "$key"; done
-    printf '\n'
-  fi
-
-  # 2) Find all names that exist on disk (from filenames) and in AGE_CONF headers
-  #    We’ll delete any name that is NOT in ALLOWED.
-  local re='^backup-(.+)-[0-9]{4}(-[0-9]{2}){5}\.tar\.gz$'
-  local -A NAME_SEEN_ON_DISK=()
-  local f base nm
-  # We still use your get_actual_files() only to list files; it does not affect ALLOWED.
-  get_actual_files || {
-    printf 'ERROR: get_actual_files failed\n' >&2
-    return 1
-  }
-  for f in "${ACTUAL_FILES[@]}"; do
-    base="${f##*/}"
-    if [[ $base =~ $re ]]; then
-      nm="${BASH_REMATCH[1]}"
-      NAME_SEEN_ON_DISK["$nm"]=1
-    fi
-  done
-
-  # 3) Parse AGE_CONF and drop sections whose header -<name>: is NOT allowed.
-  #    While dropping, collect the filenames in those sections for deletion.
-  local tmp_new tmp_del
-  tmp_new="$(mktemp)" || return 1
-  tmp_del="$(mktemp)" || {
-    rm -f "$tmp_new"
-    return 1
-  }
-
-  local in_section=0 keep_section=0 secname fn
-  exec 3<"$AGE_CONF"
-  while IFS= read -r line <&3; do
-    line="${line//$'\r'/}"
-    if [[ $line =~ ^-.*:\ *$ ]]; then
-      in_section=1
-      secname="${line#-}"
-      secname="${secname%:}"
-      secname="${secname%%[[:space:]]*}"
-      if [[ -n ${ALLOWED[$secname]:-} ]]; then
-        keep_section=1
-        printf '%s\n' "$line" >>"$tmp_new"
-      else
-        keep_section=0
-        # do not print header for removed section
-      fi
-      continue
-    fi
-
-    if ((in_section)); then
-      if ((keep_section)); then
-        printf '%s\n' "$line" >>"$tmp_new"
-      else
-        # section removed: collect filename portion before " -> AGE="
-        fn="${line%% -> AGE=*}"
-        [[ -n $fn ]] && printf '%s\n' "$fn" >>"$tmp_del"
-      fi
-      continue
-    fi
-
-    # outside any section: copy as-is (comments, headers above first section)
-    printf '%s\n' "$line" >>"$tmp_new"
-  done
-  exec 3<&-
-
-  # Replace AGE_CONF atomically with pruned version
-  if ! mv -- "$tmp_new" "$AGE_CONF"; then
-    rm -f -- "$tmp_new" "$tmp_del"
-    printf 'ERROR: cannot replace %s\n' "$AGE_CONF" >&2
-    return 1
-  fi
-
-  # 4) Build deletion set:
-  #    a) Filenames listed in removed sections (tmp_del)
-  #    b) Any on-disk files whose name is NOT ALLOWED (orphans), even if not in AGE_CONF
-  declare -A TO_DELETE=()
-  while IFS= read -r fn; do
-    [[ -n $fn ]] && TO_DELETE["$fn"]=1
-  done < <(sed '/^[[:space:]]*$/d' "$tmp_del")
-  rm -f -- "$tmp_del"
-
-  for f in "${ACTUAL_FILES[@]}"; do
-    base="${f##*/}"
-    if [[ $base =~ $re ]]; then
-      nm="${BASH_REMATCH[1]}"
-      if [[ -z ${ALLOWED[$nm]:-} ]]; then
-        TO_DELETE["$base"]=1
-      fi
-    fi
-  done
-
-  # 5) Delete files from BACKUP_DIR
-  local deleted=0 failed=0 path
-  for fn in "${!TO_DELETE[@]}"; do
-    path="$BACKUP_DIR/$fn"
-    if [[ -f $path ]]; then
-      if rm -f -- "$path"; then
-        ((deleted++)) || true
-        [[ "$VERBOSE" == true ]] && printf 'deleted: %s\n' "$path"
-      else
-        ((failed++)) || true
-        printf 'WARN: failed to delete: %s\n' "$path" >&2
-      fi
-    else
-      [[ "$VERBOSE" == true ]] && printf 'WARN: missing or not a regular file: %s\n' "$path"
-    fi
-  done
-
-  # 6) Rebuild ages for remaining entries
-  make_age || printf 'WARN: make_age failed; ages may be stale.\n' >&2
-
-  [[ "$VERBOSE" == true ]] && {
-    printf 'remove_unwanted_backups: removed_on_disk=%d, missing_or_failed=%d\n' "$deleted" "$failed"
-  }
-  return 0
-}
-
-remove_unwanted_backups
-
 delete_old() {
   [[ -z ${AGE_CONF:-} ]] && {
     printf 'ERROR: AGE_CONF is not set.\n' >&2
@@ -875,7 +690,7 @@ delete_old() {
         printf 'WARN: failed to delete: %s\n' "$path" >&2
       fi
     else
-      ((failed++)) || true # last added !
+      ((failed++))
       [[ "$VERBOSE" == true ]] && printf 'WARN: not a regular file, skipping: %s\n' "$path"
     fi
   done <"$tmp_list"
@@ -887,6 +702,18 @@ delete_old() {
   return 0
 }
 delete_old
+
+# remove_unwanted_backups() is a function that look trought BACKUP_CONF and if a backup
+# does not exist anymore inside the BACKUP_CONF it get deleted, inside the AGE_CONF and
+# inside the BACKUP_DIR with it's BACKUP_NAME like in delete_old function. This function should use
+# the format_file_name function to see if the name exist inside the BACKUP_CONF
+# if exist inside the BACKUP_DIR but don't exist in the BACKUP_CONF anymore, it get deleted
+# in the BACKUP_DIR and inside AGE_CONF.
+remove_unwanted_backups() {
+  if [[ "$VERBOSE" == true ]]; then
+    printf 'Lunching the remove_unwanted_backups function'
+  fi
+}
 
 # Finish the log
 echo "=== END Delete Run ==="
