@@ -212,7 +212,7 @@ fi
 #           03- The configurator lunch the ssh-configuration-manager.sh
 #           04- The ssh-configuration-manager.sh lunch the ufw-configuration-manager.sh
 #           05- The ufw-configuration-manager.sh lunch the timer-manager.sh
-#           06- This script create a timer that lunch backup-manager.sh every X minutes
+#           06- This script (timer-manager.sh) create a timer that lunch backup-manager.sh every X minutes
 #           07- The backups-manager.sh lunch the delete-manager.sh script
 #           08- The delete-manager.sh lunch the hash-printer.sh
 #           09- The hash-printer.sh lunch the prob-viewer.sh
@@ -225,7 +225,7 @@ fi
 #               |>if web=yes in the conf file it lunch the web-server.sh
 #               |>else it lunch the ufw-configuration-manager.sh
 #           05- The ufw-configuration-manager.sh lunch the timer-manager.sh
-#           06- This script create a timer that lunch delete-manager.sh every X minutes
+#           06- This script (timer-maanger.sh) create a timer that lunch delete-manager.sh every X minutes
 #           07- The delete-manager.sh lunch the hash-printer.sh
 #           08- The hash-printer.sh lunch the receiver.sh
 #           09- The receiver.sh process the data in the hash.file and put it in a
@@ -279,6 +279,98 @@ else
   exit 1
 fi
 
+# Create the need file depending on the client/server
+if [[ "$IS_CLIENT" == true ]]; then
+  if [[ "$VERBOSE" == true ]]; then
+    printf 'Creating the backups service file at %s\n' "$BACKUP_SERVICE_PATH"
+    printf 'Creating the backups timer file at %s\n' "$BACKUP_TIMER_PATH"
+  fi
+  sudo touch "$BACKUP_SERVICE_PATH"
+  sudo touch "$BACKUP_TIMER_PATH"
+else
+  if [[ "$VERBOSE" == true ]]; then
+    printf 'Creating the delete service file at %s\n' "$DELETE_SERVICE_PATH"
+    printf 'Creating the delete timer file at %s\n' "$DELETE_TIMER_PATH"
+    printf 'Creating the receiver service file at %s\n' "$RECEIVER_SERVICE_PATH"
+    printf 'Creating the receiver timer file at %s\n' "$RECEIVER_TIMER_PATH"
+  fi
+  sudo touch "$DELETE_SERVICE_PATH"
+  sudo touch "$DELETE_TIMER_PATH"
+  sudo touch "$RECEIVER_SERVICE_PATH"
+  sudo touch "$RECEIVER_TIMER_PATH"
+fi
+
+# Creating for each needed timer and service a configuration with systemd
+# with OnBootSec/OnUnitActiveSec and Persistent=true
 #
+# === The service ===
+# [Unit]
+# Description=My Backup Script
+# After=network-online.target
+# Wants=network-online.target
+
+# [Service]
+# Type=oneshot
+# ExecStart=/usr/local/bin/my-backup.sh
+# # Optional: ensure logs go to journal + logfile
+# StandardOutput=journal
+# StandardError=journal
+#
+# === The timer ===
+# [Unit]
+# Description=Timer to run my backup script periodically
+#
+# [Timer]
+# OnBootSec=99m
+# OnUnitActiveSec=99m
+# Persistent=true
+# Unit=my-backup.service
+#
+# [Install]
+# WantedBy=timers.target
+#
+
+create_timer() {
+  local NAME="$1"
+  local TIME="$2"
+
+  if [[ -z "$NAME" || -z "$TIME" ]]; then
+    echo "Usage: create_timer <name> <time>"
+    echo "Example: create_timer my-backup 99m"
+    return 1
+  fi
+
+  # Create systemd service
+  cat <<EOF | sudo tee /etc/systemd/system/${NAME}.service >/dev/null
+[Unit]
+Description=${NAME} service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/${NAME}.sh
+EOF
+
+  # Create systemd timer
+  cat <<EOF | sudo tee /etc/systemd/system/${NAME}.timer >/dev/null
+[Unit]
+Description=Timer for ${NAME}
+
+[Timer]
+OnBootSec=${TIME}
+OnUnitActiveSec=${TIME}
+Persistent=true
+Unit=${NAME}.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now ${NAME}.timer
+
+  echo "Timer ${NAME}.timer created with TIME='${TIME}'"
+}
 
 echo "=== END Backup Run ==="
