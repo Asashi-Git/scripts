@@ -549,6 +549,7 @@ make_age() {
   LC_ALL=C
 
   # Read age.conf and write the normalized version into $tmp
+  # Do this for each children of "-<NAME>:"
   while IFS= read -r line; do
     # Section header like: -HashRelay:
     if [[ $line =~ ^-.*:$ ]]; then
@@ -571,13 +572,15 @@ make_age() {
         if [[ -z ${seen[$key]+x} ]]; then
           printf '%s -> AGE=%d\n' "$key" "$idx" >>"$tmp"
           seen[$key]=1
-          ((idx++)) || true
+          ((idx++)) || true # Add to age
         fi
         # Regardless, do not print the original line again
+        # to avoid duplicate
         continue
       fi
 
       # Non-backup lines inside a section (comments/blank)
+      # keep the commented line like they are
       printf '%s\n' "$line" >>"$tmp"
       continue
     fi
@@ -601,8 +604,8 @@ make_age
 #   get_actual_files  -> exports ACTUAL_FILES[]
 #   make_age          -> rebuilds AGE indices in AGE_CONF
 # Remove backups for any <name> that is NOT present in BACKUP_CONF.
-# Does NOT modify your other helpers. Pure Bash/sed; no gawk.
 remove_unwanted_backups() {
+  # Verification steps
   [[ -z ${BACKUP_DIR:-} ]] && {
     printf 'ERROR: BACKUP_DIR not set\n' >&2
     return 1
@@ -639,6 +642,7 @@ remove_unwanted_backups() {
   #    - ignore comments/blank/whitespace
   #    - take token before '=' as name
   #    - strip spaces and CRLF
+  #    CRLF= "carriage return + line feed" => example "\r\n"
   declare -A ALLOWED=()
   local line key
   while IFS= read -r line; do
@@ -777,10 +781,10 @@ remove_unwanted_backups() {
   }
   return 0
 }
-
 remove_unwanted_backups
 
 delete_old() {
+  # Verification part
   [[ -z ${AGE_CONF:-} ]] && {
     printf 'ERROR: AGE_CONF is not set.\n' >&2
     return 1
@@ -812,7 +816,7 @@ delete_old() {
     printf 'ERROR: mktemp failed\n' >&2
     return 1
   }
-  tmp_list="$(mktemp "${TMPDIR:-/tmp}/ageconf.todel.XXXXXXXX")" || {
+  tmp_list="$(mktemp "${TMPDIR:-/tmp}/ageconf.todel.XXXXXXXX")" || { # todel = to delete
     rm -f -- "$tmp_conf"
     printf 'ERROR: mktemp failed\n' >&2
     return 1
