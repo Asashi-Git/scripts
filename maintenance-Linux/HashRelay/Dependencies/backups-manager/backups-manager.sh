@@ -222,7 +222,7 @@ chmod 655 -- "$LOG_FILE" "$LOG_DIR"
 # Uses gawk to prefix lines with a timestamp.
 exec > >(awk '{ print strftime("[%Y-%m-%d %H:%M:%S%z]"), $0; fflush(); }' | tee -a "$LOG_FILE") 2>&1
 
-echo "=== START backup run ==="
+echo "=== START Backup Run ==="
 echo "Using config: $BACKUP_CONF"
 echo "Destination:  $BACKUP_DIR"
 echo "Log file:     $LOG_FILE"
@@ -283,7 +283,7 @@ done < <(grep -Ev '^\s*(#|$)' "$BACKUP_CONF")
 
 echo "$USER_PATH_NAME"
 
-echo "=== END backup run ==="
+echo "=== END Backup Run ==="
 
 # Finally, chain to the delete-manager script; exec replaces the current process
 exec sudo bash "$NEXT"

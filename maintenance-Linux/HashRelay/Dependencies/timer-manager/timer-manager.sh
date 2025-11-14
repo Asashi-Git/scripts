@@ -182,3 +182,79 @@ if [[ "$TIMER_CALL" == true ]]; then
   # Finally, chain to the client script; exec replaces the current process
   exec sudo bash "$NEXT"
 fi
+
+# Stating the true timer section that create a timer via the timer set inside the CONFIG file
+# and using systemd timer.
+# If the timer already exist, change the timer, change the timer inside the systemd
+# and reload the demon with sudo systemctl daemon-reload.
+# If the timer did not exist, create the timer with the service file too.
+# We already have a variable named CONFIGURED_TIMER that have the timer that the user set
+# in it.
+#
+# What's the workflow of my agent:
+#   01- The installation via hashrelay-installer.sh
+#   02- The configuration via hashrelay-client/hashrelay-server.sh server or client
+#      *  If on the client:
+#           03- The configurator lunch the ssh-configuration-manager.sh
+#           04- The ssh-configuration-manager.sh lunch the ufw-configuration-manager.sh
+#           05- The ufw-configuration-manager.sh lunch the timer-manager.sh
+#           06- This script create a timer that lunch backup-manager.sh every X minutes
+#           07- The backup-manager.sh lunch the delete-manager.sh script
+#           08- The delete-manager.sh lunch the hash-printer.sh
+#           09- The hash-printer.sh lunch the prob-viewer.sh
+#           10- The prob-viewer.sh verrify the server is up if up, lunch the sender.sh
+#           11- The sender.sh send/retreve the hash.file lunch the scp.sh
+#           12- Then scp.sh send the backups to the server
+#      *  If on the server:
+#           03- The configurator lunch the ssh-configuration-manager.sh
+#           04- The ssh-configuration-manager.sh lunch:
+#               |>if web=yes in the conf file it lunch the web-server.sh
+#               |>else it lunch the ufw-configuration-manager.sh
+#           05- The ufw-configuration-manager.sh lunch the timer-manager.sh
+#           06- This script create a timer that lunch delete-manager.sh every X minutes
+#           07- The delete-manager.sh lunch the hash-printer.sh
+#           08- The hash-printer.sh lunch the receiver.sh
+#           09- The receiver.sh process the data in the hash.file and put it in a
+#               directory so the client can process the server output.
+#
+# So in this script we need to create server/timer for two different script:
+#      *  If on the client:
+#           - backup-manager.sh
+#      *  If on the server:
+#           - delete-manager.sh
+#           - receiver.sh (With like a static timer of 20/40 secondes)
+#
+
+SERVICE_PATH="/etc/systemd/system/hashrelay-agent.service"
+TIMER_PATH="/etc/systemd/system/hashrelay-agent.timer"
+
+# Logging
+LOG_DIR="/var/log/HashRelay"
+LOG_FILE="${LOG_DIR}/timer.log"
+umask 027
+mkdir -p -- "$LOG_DIR" "$BACKUP_DIR"
+# Ensure log file exists with restrictive perms
+touch -- "$LOG_FILE"
+chmod 655 -- "$LOG_FILE" "$LOG_DIR"
+
+# Route all stdout/stderr to both console and the log file, with timestamps
+# Uses gawk to prefix lines with a timestamp.
+exec > >(awk '{ print strftime("[%Y-%m-%d %H:%M:%S%z]"), $0; fflush(); }' | tee -a "$LOG_FILE") 2>&1
+
+echo "=== START Timer Run ==="
+echo "Using config: $BACKUP_CONF"
+echo "Destination:  $BACKUP_DIR"
+echo "Log file:     $LOG_FILE"
+
+# Checking if there is a TIMER=ChosenTimerNumber
+if [[ -n "$CONFIGURED_TIMER" ]]; then
+  echo "Timer exist and is set to $CONFIGURED_TIMER minutes"
+else
+  printf 'Then timer is not configured. Configure the timer'
+  printf 'via the command hashrelay --config'
+  exit 1
+fi
+
+#
+
+echo "=== END Backup Run ==="
