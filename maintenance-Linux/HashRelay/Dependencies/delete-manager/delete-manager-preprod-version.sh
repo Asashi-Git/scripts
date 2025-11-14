@@ -437,6 +437,7 @@ get_backup_name() {
     printf 'Done. Added %d entr%s.\n' "$added" $([[ $added -eq 1 ]] && echo "y" || echo "ies")
   fi
 }
+#get_backup_name
 
 # append_new_backups is a function that get the output of get_actual_files and
 # if the file name is new append the full name of the backup under it's
@@ -511,14 +512,7 @@ append_new_backups() {
 }
 append_new_backups
 
-# make_age() is a function that look at the date of each backup that been append_new_backups
-# and put automatically an age for each backup. The most recent backup have an age of 0
-# and it increment for each backups of each get_backup_name.
-# Caution !!
-# The age must be placed on the right of each append_new_backups AGE=TheAgeOfTheBackup.
-# Caution !!
-# Naturally since the new backup are put at the top, the age of the older baclup must
-# increment by the number of new backup.
+# POSIX-ish Bash only (no awk/sed/gawk). Works on Arch bash.
 make_age() {
   [[ -z ${AGE_CONF:-} ]] && {
     printf 'ERROR: AGE_CONF is not set.\n' >&2
@@ -533,94 +527,225 @@ make_age() {
     return 1
   }
 
-  local tmp rc
-  tmp="$(mktemp "${TMPDIR:-/tmp}/ageconf.XXXXXXXX")" || {
+  local tmp
+  tmp="$(mktemp "${TMPDIR:-/tmp}/ageconf.rewrite.XXXXXXXX")" || {
     printf 'ERROR: mktemp failed\n' >&2
     return 1
   }
 
-  # We do not sort; we just walk in file order. This ensures older backups
-  # naturally get their ages incremented whenever new backups are inserted on top.
-  gawk '
-  BEGIN {
-    # A backup filename we care about:
-    # backup-<name>-YYYY-MM-DD-HH-MM-SS.tar.gz
-    refile = /^backup-(.+)-[0-9]{4}(-[0-9]{2}){5}\.tar\.gz$/
-    in_section = 0
-    age = -1
-  }
+  # Regex for backup filename: backup-<name>-YYYY-MM-DD-HH-MM-SS.tar.gz
+  # Bash [[ =~ ]] supports ERE.
+  local re_backup='^backup-.+-[0-9]{4}(-[0-9]{2}){5}\.tar\.gz$'
 
-  function start_section() {
-    in_section = 1
-    age = -1
-  }
+  local in_section=0 idx=-1 line key
+  declare -A seen # seen["filename"]=1 inside a section
 
-  function end_section() {
-    in_section = 0
-    age = -1
-  }
+  # Ensure predictable collation/regex behavior
+  LC_ALL=C
 
-  {
-    line = $0
+  # Read age.conf and write the normalized version into $tmp
+  while IFS= read -r line; do
+    # Section header like: -HashRelay:
+    if [[ $line =~ ^-.*:$ ]]; then
+      printf '%s\n' "$line" >>"$tmp"
+      in_section=1
+      idx=0
+      # reset the per-section de-dup map
+      for k in "${!seen[@]}"; do unset 'seen[$k]'; done
+      continue
+    fi
 
-    # A section header: starts with "-" and ends with ":"
-    if (line ~ /^-.*:$/) {
-      # new section -> reset age counter
-      print line
-      start_section()
-      next
-    }
+    if ((in_section)); then
+      # Normalize to pure filename: strip " -> AGE=..."
+      key="${line%% -> AGE=*}"
 
-    if (in_section) {
-      # Strip any previous age annotation safely
-      fn = line
-      sub(/ -> AGE=.*/, "", fn)
+      if [[ $key =~ $re_backup ]]; then
+        # De-dup within the section
+        if [[ -z ${seen[$key]+x} ]]; then
+          printf '%s -> AGE=%d\n' "$key" "$idx" >>"$tmp"
+          seen[$key]=1
+          ((idx++)) || true
+        fi
+        # Regardless, do not print the original line again
+        continue
+      fi
 
-      if (fn ~ refile) {
-        age++
-        printf "%s -> AGE=%d\n", fn, age
-        next
-      } else {
-        # Not a backup entry; just print as-is (comments/blank lines/others)
-        print line
-        next
-      }
-    }
+      # Non-backup lines inside a section (comments/blank)
+      printf '%s\n' "$line" >>"$tmp"
+      continue
+    fi
 
-    # Outside of any section, print unchanged
-    print line
-  }
-  ' "$AGE_CONF" >"$tmp"
-  rc=$?
+    # Outside any section (top comments, etc.)
+    printf '%s\n' "$line" >>"$tmp"
+  done <"$AGE_CONF"
 
-  if ((rc != 0)); then
-    rm -f -- "$tmp"
-    printf 'ERROR: make_age processing failed (rc=%d)\n' "$rc" >&2
-    return 1
-  fi
-
+  # Atomically replace
   mv -- "$tmp" "$AGE_CONF" || {
     printf 'ERROR: could not replace %s\n' "$AGE_CONF" >&2
     return 1
   }
-
   [[ "$VERBOSE" == true ]] && printf 'make_age: ages rewritten in-place based on current order in %s\n' "$AGE_CONF"
-  return 0
 }
+
 make_age
 
-# delete_old() is a function that delete the considered too old backup presend inside
-# AGE_CONF file. This function should use the CONFIG_FILE to get the BACKUP_NUMBER that
-# the user have configured. If a backup is >= then the BACKUP_NUMBER, he should be
-# deleted from the disk using the BACKUP_DIR and the name that been onto the AGE_CONF file
-# since in this file the backup already have there full name.
-# This function should delete the backup from the disk and then from the AGE_CONF file too.
-# To delete it from the disk, we should use BACKUP_DIR/NameOfTheBackup.
 delete_old() {
-  if [[ "$VERBOSE" == true ]]; then
-    printf 'Starting the delete_old function'
+  [[ -z ${AGE_CONF:-} ]] && {
+    printf 'ERROR: AGE_CONF is not set.\n' >&2
+    return 1
+  }
+  [[ ! -f $AGE_CONF ]] && {
+    printf 'ERROR: AGE_CONF does not exist: %s\n' "$AGE_CONF" >&2
+    return 1
+  }
+  [[ -z ${BACKUP_DIR:-} ]] && {
+    printf 'ERROR: BACKUP_DIR is not set.\n' >&2
+    return 1
+  }
+  [[ ! -d $BACKUP_DIR ]] && {
+    printf 'ERROR: BACKUP_DIR is not a directory: %s\n' "$BACKUP_DIR" >&2
+    return 1
+  }
+  # Guard against catastrophic delete
+  case "$BACKUP_DIR" in
+  "" | "/")
+    printf 'ERROR: BACKUP_DIR is unsafe: "%s"\n' "$BACKUP_DIR" >&2
+    return 1
+    ;;
+  esac
+
+  # Resolve BACKUP_NUMBER (env overrides CONFIG_FILE)
+  if [[ -z ${BACKUP_NUMBER:-} ]]; then
+    if [[ -n ${CONFIG_FILE:-} && -f $CONFIG_FILE ]]; then
+      # shellcheck disable=SC1090
+      source "$CONFIG_FILE"
+    fi
   fi
+  [[ $BACKUP_NUMBER =~ ^[0-9]+$ ]] || {
+    printf 'ERROR: BACKUP_NUMBER must be a non-negative integer.\n' >&2
+    return 1
+  }
+
+  [[ "$VERBOSE" == true ]] && printf 'delete_old: keeping %d newest backups per section\n' "$BACKUP_NUMBER"
+
+  # 1) Build precise list of filenames to delete (index >= BACKUP_NUMBER within each section)
+  local tmp_list
+  tmp_list="$(mktemp "${TMPDIR:-/tmp}/ageconf.todel.XXXXXXXX")" || {
+    printf 'ERROR: mktemp failed\n' >&2
+    return 1
+  }
+
+  gawk -v keep="$BACKUP_NUMBER" '
+    BEGIN {
+      refile = /^backup-(.+)-[0-9]{4}(-[0-9]{2}){5}\.tar\.gz$/
+      in_section = 0
+      idx = -1
+    }
+    function start_section(){ in_section=1; idx=-1 }
+    function end_section(){ in_section=0; idx=-1 }
+
+    {
+      line = $0
+      if (line ~ /^-.*:$/) { start_section(); next }  # no printing here (bug fix)
+      if (in_section) {
+        fn = line
+        sub(/ -> AGE=.*/, "", fn)                    # isolate filename
+        if (fn ~ refile) {
+          idx++
+          if (idx >= keep) print fn                  # only actual filenames
+        }
+      }
+    }
+  ' "$AGE_CONF" >"$tmp_list" || {
+    rm -f -- "$tmp_list"
+    printf 'ERROR: parse failure\n' >&2
+    return 1
+  }
+
+  mapfile -t TO_DELETE <"$tmp_list"
+  rm -f -- "$tmp_list"
+
+  if ((${#TO_DELETE[@]} == 0)); then
+    [[ "$VERBOSE" == true ]] && printf 'delete_old: nothing to delete.\n'
+    return 0
+  fi
+
+  [[ "$VERBOSE" == true ]] && printf 'delete_old: will delete %d file(s)\n' "${#TO_DELETE[@]}"
+
+  # 2) Delete files on disk; track successes
+  declare -A OK=()
+  local deleted=0 failed=0 f path
+  for f in "${TO_DELETE[@]}"; do
+    # Defensive: skip empty or whitespace-only entries
+    [[ -z "${f//[[:space:]]/}" ]] && continue
+
+    path="$BACKUP_DIR/$f"
+
+    # Only delete regular files that match our pattern
+    if [[ ! -f "$path" ]]; then
+      ((failed++)) || true
+      printf 'WARN: not a regular file, skipping: %s\n' "$path" >&2
+      continue
+    fi
+
+    if rm -f -- "$path"; then
+      OK["$f"]=1
+      ((deleted++)) || true
+      [[ "$VERBOSE" == true ]] && printf 'deleted: %s\n' "$path"
+    else
+      ((failed++)) || true
+      printf 'ERROR: failed to delete on disk: %s (keeping its line)\n' "$path" >&2
+    fi
+  done
+
+  # 3) Rewrite AGE_CONF without lines for which deletion succeeded
+  local tmp_conf tmp_keys
+  tmp_conf="$(mktemp "${TMPDIR:-/tmp}/ageconf.new.XXXXXXXX")" || {
+    printf 'ERROR: mktemp failed\n' >&2
+    return 1
+  }
+  tmp_keys="$(mktemp "${TMPDIR:-/tmp}/ageconf.keys.XXXXXXXX")" || {
+    rm -f -- "$tmp_conf"
+    printf 'ERROR: mktemp failed\n' >&2
+    return 1
+  }
+  for f in "${!OK[@]}"; do printf '%s\n' "$f"; done >"$tmp_keys"
+
+  gawk -v keys_file="$tmp_keys" '
+    BEGIN {
+      while ((getline k < keys_file) > 0) del[k]=1
+      close(keys_file)
+      refile = /^(backup-(.+)-[0-9]{4}(-[0-9]{2}){5}\.tar\.gz)/
+    }
+    {
+      line=$0
+      fname=line
+      sub(/ -> AGE=.*/, "", fname)
+      if (match(fname, refile, m)) {
+        if (m[1] in del) next
+      }
+      print line
+    }
+  ' "$AGE_CONF" >"$tmp_conf" || {
+    rm -f -- "$tmp_conf" "$tmp_keys"
+    printf 'ERROR: pruning failed\n' >&2
+    return 1
+  }
+
+  rm -f -- "$tmp_keys"
+  mv -- "$tmp_conf" "$AGE_CONF" || {
+    printf 'ERROR: could not replace %s\n' "$AGE_CONF" >&2
+    return 1
+  }
+
+  [[ "$VERBOSE" == true ]] && printf 'delete_old: removed %d line(s), %d failed on disk\n' "$deleted" "$failed"
+
+  # 4) Normalize ages after deletions
+  make_age || printf 'WARN: make_age failed after delete; ages may be stale.\n' >&2
+  return 0
 }
+
+delete_old
 
 # Finish the log
 echo "=== END Delete Run ==="
