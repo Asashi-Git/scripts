@@ -258,7 +258,7 @@ RECEIVER_PATH="/usr/local/bin/HashRelay/receiver/receiver.sh"
 LOG_DIR="/var/log/HashRelay"
 LOG_FILE="${LOG_DIR}/timer-manager.log"
 umask 027
-mkdir -p -- "$LOG_DIR" "$BACKUP_DIR"
+mkdir -p -- "$LOG_DIR"
 # Ensure log file exists with restrictive perms
 touch -- "$LOG_FILE"
 chmod 655 -- "$LOG_FILE" "$LOG_DIR"
@@ -268,8 +268,6 @@ chmod 655 -- "$LOG_FILE" "$LOG_DIR"
 exec > >(awk '{ print strftime("[%Y-%m-%d %H:%M:%S%z]"), $0; fflush(); }' | tee -a "$LOG_FILE") 2>&1
 
 echo "=== START Timer Run ==="
-echo "Using config: $BACKUP_CONF"
-echo "Destination:  $BACKUP_DIR"
 echo "Log file:     $LOG_FILE"
 
 # Checking if there is a TIMER=ChosenTimerNumber
