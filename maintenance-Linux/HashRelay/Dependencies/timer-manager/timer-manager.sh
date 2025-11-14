@@ -199,7 +199,7 @@ fi
 #           04- The ssh-configuration-manager.sh lunch the ufw-configuration-manager.sh
 #           05- The ufw-configuration-manager.sh lunch the timer-manager.sh
 #           06- This script create a timer that lunch backup-manager.sh every X minutes
-#           07- The backup-manager.sh lunch the delete-manager.sh script
+#           07- The backups-manager.sh lunch the delete-manager.sh script
 #           08- The delete-manager.sh lunch the hash-printer.sh
 #           09- The hash-printer.sh lunch the prob-viewer.sh
 #           10- The prob-viewer.sh verrify the server is up if up, lunch the sender.sh
@@ -219,18 +219,30 @@ fi
 #
 # So in this script we need to create server/timer for two different script:
 #      *  If on the client:
-#           - backup-manager.sh (With a timer of X set in the configuration)
+#           - backups-manager.sh (With a timer of X set in the configuration)
 #      *  If on the server:
 #           - delete-manager.sh (With a timer of X set in the configuration)
 #           - receiver.sh (With like a static timer of 20/40 secondes)
 #
 
-SERVICE_PATH="/etc/systemd/system/hashrelay-agent.service"
-TIMER_PATH="/etc/systemd/system/hashrelay-agent.timer"
+# Variables for backups-manager.sh
+BACKUP_SERVICE_PATH="/etc/systemd/system/hashrelay-backups.service"
+BACKUP_TIMER_PATH="/etc/systemd/system/hashrelay-backups.timer"
+BACKUP_MANAGER_PATH="/usr/local/bin/HashRelay/backups-manager/backups-manager.sh"
+
+# Variables for delete-manager.sh
+DELETE_SERVICE_PATH="/etc/systemd/system/hashrelay-delete.service"
+DELETE_TIMER_PATH="/etc/systemd/system/hashrelay-delete.timer"
+DELETE_MANAGER_PATH="/usr/local/bin/HashRelay/delete-manager/delete-manager.sh"
+
+# Variables for receiver.sh
+RECEIVER_SERVICE_PATH="/etc/systemd/system/hashrelay-receiver.service"
+RECEIVER_TIMER_PATH="/etc/systemd/system/hashrelay-receiver.timer"
+RECEIVER_PATH="/usr/local/bin/HashRelay/receiver/receiver.sh"
 
 # Logging
 LOG_DIR="/var/log/HashRelay"
-LOG_FILE="${LOG_DIR}/timer.log"
+LOG_FILE="${LOG_DIR}/timer-manager.log"
 umask 027
 mkdir -p -- "$LOG_DIR" "$BACKUP_DIR"
 # Ensure log file exists with restrictive perms
