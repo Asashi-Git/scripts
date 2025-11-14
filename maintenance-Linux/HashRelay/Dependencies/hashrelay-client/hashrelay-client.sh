@@ -86,7 +86,7 @@ client_configurator() {
       "Welcome to $title"
 
     # Menu
-    choice=$(printf "Configure your machine name\nConfigure the server IP\nConfigure the server Port\nConfigure how many backups of the same file do you want to keep on your machine\nSee the config file\nQuit" |
+    choice=$(printf "Configure your machine name\nConfigure the server IP\nConfigure the server Port\nConfigure how many backups of the same file do you want to keep on your machine\nSet your timer between each backups\nSee the config file\nQuit" |
       gum choose --cursor.foreground="#ff5fd2" --header "Choose an action")
     [ -z "${choice:-}" ] && exit 0
 
@@ -121,6 +121,14 @@ client_configurator() {
       fi
       if [[ "$VERBOSE" == true ]]; then
         echo "lunching the delete-manager script with --number flag"
+      fi
+      ;;
+    "Set your timer between each backups")
+      if [[ "$DRY_RUN" == false ]]; then
+        sudo bash /usr/local/bin/HashRelay/timer-manager/timer-manager.sh --timer
+      fi
+      if [[ "$VERBOSE" == true ]]; then
+        echo "lunching the timer-manager script with --timer flag"
       fi
       ;;
     "See the config file")
