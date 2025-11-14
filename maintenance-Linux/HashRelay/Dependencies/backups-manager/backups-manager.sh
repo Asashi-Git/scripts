@@ -24,6 +24,7 @@ NEXT=/usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh
 VERBOSE=false                                     # Extra logging
 NAME=false                                        # if true, ask the name of the actual client machine
 CONFIG_FILE="/usr/local/bin/HashRelay/agent.conf" # The main config file (where we need to add the CLIENT_NAME)
+NEXT="/usr/local/bin/HashRelay/delete-manager/delete-manager.sh"
 
 # usage(): print help text:
 usage() {
@@ -283,3 +284,6 @@ done < <(grep -Ev '^\s*(#|$)' "$BACKUP_CONF")
 echo "$USER_PATH_NAME"
 
 echo "=== END backup run ==="
+
+# Finally, chain to the delete-manager script; exec replaces the current process
+exec sudo bash "$NEXT"
