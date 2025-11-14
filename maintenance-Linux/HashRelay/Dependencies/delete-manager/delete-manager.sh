@@ -705,7 +705,10 @@ delete_old
 
 # remove_unwanted_backups() is a function that look trought BACKUP_CONF and if a backup
 # does not exist anymore inside the BACKUP_CONF it get deleted, inside the AGE_CONF and
-# inside the BACKUP_DIR/BACKUP_NAME like in delete_old function.
+# inside the BACKUP_DIR with it's BACKUP_NAME like in delete_old function. This function should use
+# the format_file_name function to see if the name exist inside the BACKUP_CONF
+# if exist inside the BACKUP_DIR but don't exist in the BACKUP_CONF anymore, it get deleted
+# in the BACKUP_DIR and inside AGE_CONF.
 remove_unwanted_backups() {
   if [[ "$VERBOSE" == true ]]; then
     printf 'Lunching the remove_unwanted_backups function'
