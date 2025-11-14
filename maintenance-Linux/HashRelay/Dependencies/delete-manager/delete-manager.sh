@@ -516,6 +516,98 @@ append_new_backups
 # and it increment for each backups of each get_backup_name.
 # Caution !!
 # The age must be placed on the right of each append_new_backups AGE=TheAgeOfTheBackup.
+# Caution !!
+# Naturally since the new backup are put at the top, the age of the older baclup must
+# increment by the number of new backup.
+make_age() {
+  [[ -z ${AGE_CONF:-} ]] && {
+    printf 'ERROR: AGE_CONF is not set.\n' >&2
+    return 1
+  }
+  [[ ! -f $AGE_CONF ]] && {
+    printf 'ERROR: AGE_CONF does not exist: %s\n' "$AGE_CONF" >&2
+    return 1
+  }
+  [[ ! -w $AGE_CONF ]] && {
+    printf 'ERROR: AGE_CONF is not writable: %s\n' "$AGE_CONF" >&2
+    return 1
+  }
+
+  local tmp rc
+  tmp="$(mktemp "${TMPDIR:-/tmp}/ageconf.XXXXXXXX")" || {
+    printf 'ERROR: mktemp failed\n' >&2
+    return 1
+  }
+
+  # We do not sort; we just walk in file order. This ensures older backups
+  # naturally get their ages incremented whenever new backups are inserted on top.
+  gawk '
+  BEGIN {
+    # A backup filename we care about:
+    # backup-<name>-YYYY-MM-DD-HH-MM-SS.tar.gz
+    refile = /^backup-(.+)-[0-9]{4}(-[0-9]{2}){5}\.tar\.gz$/
+    in_section = 0
+    age = -1
+  }
+
+  function start_section() {
+    in_section = 1
+    age = -1
+  }
+
+  function end_section() {
+    in_section = 0
+    age = -1
+  }
+
+  {
+    line = $0
+
+    # A section header: starts with "-" and ends with ":"
+    if (line ~ /^-.*:$/) {
+      # new section -> reset age counter
+      print line
+      start_section()
+      next
+    }
+
+    if (in_section) {
+      # Strip any previous age annotation safely
+      fn = line
+      sub(/ -> AGE=.*/, "", fn)
+
+      if (fn ~ refile) {
+        age++
+        printf "%s -> AGE=%d\n", fn, age
+        next
+      } else {
+        # Not a backup entry; just print as-is (comments/blank lines/others)
+        print line
+        next
+      }
+    }
+
+    # Outside of any section, print unchanged
+    print line
+  }
+  ' "$AGE_CONF" >"$tmp"
+  rc=$?
+
+  if ((rc != 0)); then
+    rm -f -- "$tmp"
+    printf 'ERROR: make_age processing failed (rc=%d)\n' "$rc" >&2
+    return 1
+  fi
+
+  mv -- "$tmp" "$AGE_CONF" || {
+    printf 'ERROR: could not replace %s\n' "$AGE_CONF" >&2
+    return 1
+  }
+
+  [[ "$VERBOSE" == true ]] && printf 'make_age: ages rewritten in-place based on current order in %s\n' "$AGE_CONF"
+  return 0
+}
+make_age
 
 # Finish the log
 echo "=== END Delete Run ==="
