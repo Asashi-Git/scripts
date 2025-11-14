@@ -21,6 +21,7 @@ if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
   exit 1
 fi
 
+# Main variables
 title="Timer Configurator"
 CONFIG="/usr/local/bin/HashRelay/agent.conf"
 NEXT="/usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh"
@@ -67,6 +68,17 @@ while [[ $# -gt 0 ]]; do
     ;;
   esac
 done
+
+# See if we are onto a client or a server configuration
+CLIENT_OR_SERVER=$(/usr/local/bin/HashRelay/agent-detector/agent-detector.sh)
+# Let's print the result:
+if [[ "$CLIENT_OR_SERVER" == "true" ]]; then
+  IS_CLIENT=true
+  printf 'Client is considered: %s\n' "$IS_CLIENT"
+else
+  IS_SERVER=true
+  printf 'Server is considered: %s\n' "$IS_SERVER"
+fi
 
 # Read the last TIMER entry from CONFIG (if file exists)
 # - Greps for a line starting with TIMER=

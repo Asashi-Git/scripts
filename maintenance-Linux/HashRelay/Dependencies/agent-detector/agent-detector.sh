@@ -37,7 +37,7 @@ get_client() {
 RESULT=$(get_client)
 
 if [[ "$RESULT" == "true" ]]; then
-  echo 'You are onto a client machine'
+  echo "$RESULT"
 else
-  echo 'You are onto a server machine'
+  echo "$RESULT"
 fi
