@@ -236,6 +236,13 @@ trim() {
 }
 
 # Optional: make BACKUP_NAME safe for filenames (keeps alnum . _ -)
+# TODO:
+# We must need to use full path name to avoid having two backup with the same
+# name.
+# Imagine a backup of /var/log/HashRelay/log.log
+# And a backup of/var/log/HashRelay/delete-manager/log.log
+# The two backup will have the same name but they are different backups
+# In that situation, using the full path avoid this mistake.
 sanitize_name() {
   printf '%s' "$1" | tr ' /' '__' | tr -cd '[:alnum:]._-' || true
 }

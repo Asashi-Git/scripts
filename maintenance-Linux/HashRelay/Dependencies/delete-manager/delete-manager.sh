@@ -273,62 +273,6 @@ if [[ "$VERBOSE" == true ]]; then
   echo "Inside the configuration, the user choose to backup $BACKUP_NUMBER iteration of the same file"
 fi
 
-# This is the part of the script where I need help:
-# This is how the AGE_CONF file should look like with an BACKUP_NUMBER of 3:
-#
-# # Contain the age of each backups file # This is how the AGE_CONF file look like actually he just have this comment.
-# -nginx.conf: <- this is a "BACKUP_NAME" BACKUP_NAME always have this format "-$BACKUP_NAME:\n"
-# backup-nginx.conf-2025-11-12-23-09-05.tar.gz -> AGE=0 (This is for year 2025 November(11) the 12 day at 23 hours 09 minutes and 05 seconds. This is the newest backup, he got juste backed up.
-# backup-nginx.conf-2025-11-12-22-34-22.tar.gz -> AGE=1
-# backup-nginx.conf-2025-11-11-15-23-18.tar.gz -> AGE=2
-# backup-nginx.conf-2025-11-05-12-26-52.tar.gz -> AGE=3 (This backup should be deleted be cause he just got an age of 3 and the BACKUP_NUMBER is = 3)
-# -nginx: (Here that's not the nginx.conf but directory that's been backup)
-# backup-nginx-2025-11-10-12-14-42.tar.gz -> AGE=0
-# backup-nginx-2025-11-04-05-37-13.tar.gz -> AGE=1
-# -HashRelay:
-# backup-HashRelay-2025-11-04-15-51-18.tar.gz -> AGE=0
-# backup-HashRelay-2025-10-15-20-32-47.tar.gz -> AGE=1
-# backup-HashRelay-2024-12-24-23-59-59.tar.gz -> AGE=2
-#
-# So in this example of AGE_CONF the nginx.conf backup with an age of 3 because BACKUP_NUMBER
-# been configured to 3 inside the CONFIG_FILE should be deleted.
-# The next time the user do an backup of nginx.conf, the backup with the age of 2
-# should get an age of 3 and then should be deleted too. They should be deleted
-# from the AGE_CONF and inside the BACKUP_DIR. What's good with this method is
-# that is easy for us to delete the real backup file inside the BACKUP_DIR because
-# we already have the exact name of the file and his directory with the BACKUP_DIR variable.
-# I don't want to use another file then the AGE_CONF file because with one file it's
-# more readable and more easy for me to centralize all inside one file.
-
-# So to make it work we need to make all theses steps in order:
-#
-# 1- get_actual_backups():
-# Create a function that look at the BACKUP_DIR to store all of the actual backups
-#
-# 2- create_backups_name():
-# Create a function that look at the AGE_CONF file to see if the BACKUP_NAME already
-# exist inside the file. We can easily spot if because all BACKUP_NAME have a "-BACKUP_NAME:"
-# format inside the AGE_CONF file. If there is no BACKUP_NAME match it create the BACKUP_NAME.
-#
-# 3- append_new_backups():
-# Create a function that look at the AGE_CONF file to see if the backups inside BACKUP_DIR have
-# already been reported throug the file. If there is no BACKUP_NAME match it call the precedent
-# function to create it. If there already a BACKUP_NAME it add the new backups under the
-# BACKUP_NAME.
-#
-# 4- make_age():
-# Create a function that look at the AGE_CONF and via the date of the backup, determine
-# the age of the backups inside the AGE_CONF file. The most recent file get an age of 0.
-# the second most recent get age++ etc... The age must be print inside the AGE_CONF file
-# to the left of each baskup like showed in the example AGE_CONF file.
-#
-# 5- delete_old():
-# Create a function that look at the AGE_CONF file and for each BACKUP_NAME go through the
-# age of all the backup. If a backup have an age >= of the BACKUP_NUMBER he got deleted
-# and his line inside the AGE_CONF got deleted too.
-# This function should do that for all children of BACKUP_NAME.
-#
-
 # Creating a function to get all of the file inside the $BACKUP_DIR
 ACTUAL_FILES=""
 get_actual_files() {
@@ -604,18 +548,6 @@ make_age
 #   get_actual_files  -> exports ACTUAL_FILES[]
 #   make_age          -> rebuilds AGE indices in AGE_CONF
 # Remove backups for any <name> that is NOT present in BACKUP_CONF.
-# TODO:
-# THIS FUNCTION HAVE ACTUALLY A PROBLEM I NEED TO FIX IT.
-# The problem is that if in the BACKUP_CONF there is only one backup
-# this function remove all the backups in BACKUP_DIR
-# if there is more then one backup inside BACKUP_CONF
-# all work great...
-# This bug is only durint the first lunch of the script so:
-# if I don't add a second backup inside BACKUP_CONF the function bug
-# if I add a second backup inside BACKUP_CONF there is no bug
-# if I have added a second backup in BACKUP_CONF and then I luch the script and then
-# I remove it, there is no bug anymore and the function work great with only one backup
-# in BACKUP_CONF.
 remove_unwanted_backups() {
   # Verification steps
   [[ -z ${BACKUP_DIR:-} ]] && {
