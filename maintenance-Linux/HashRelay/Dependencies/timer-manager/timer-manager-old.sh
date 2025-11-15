@@ -351,18 +351,50 @@ Unit=hashrelay-backups.service
 WantedBy=timers.target
 EOF
 
+  # Create systemd delete service
+  cat <<EOF | sudo tee "$DELETE_SERVICE_PATH" >/dev/null
+[Unit]
+Description=Hashrelay-delete service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=$DELETE_MANAGER_PATH
+EOF
+
+  # Create systemd delete timer
+  cat <<EOF | sudo tee "$DELETE_TIMER_PATH" >/dev/null
+[Unit]
+Description=Timer for hashrelay-delete
+
+[Timer]
+OnBootSec=${CONFIGURED_TIMER}m
+OnUnitActiveSec=${CONFIGURED_TIMER}m
+Persistent=true
+Unit=hashrelay-delete.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
   if [[ "$DRYRUN" == false ]]; then
     printf 'Reloading the deamons'
     sudo systemctl daemon-reload
     printf 'Enabeling the timer'
     sudo systemctl enable --now hashrelay-backups.timer
+    sudo systemctl enable --now hashrelay-delete.timer
 
     echo "Timer hashrelay-backups.timer created with TIME='${CONFIGURED_TIMER}m'"
     printf 'The service file have been created at %s\n' "$BACKUP_SERVICE_PATH"
     printf 'The timer path have been created at %s\n' "$BACKUP_TIMER_PATH"
+    printf 'The service file have been created at %s\n' "$DELETE_SERVICE_PATH"
+    printf 'The timer path have been created at %s\n' "$DELETE_TIMER_PATH"
   else
     printf 'The service file have been created at %s\n' "$BACKUP_SERVICE_PATH"
     printf 'The timer path have been created at %s\n' "$BACKUP_TIMER_PATH"
+    printf 'The service file have been created at %s\n' "$DELETE_SERVICE_PATH"
+    printf 'The timer path have been created at %s\n' "$DELETE_TIMER_PATH"
     printf 'The deamons have not been reloaded\n'
     printf 'If you consider that theses file look great, you can reload them\n'
   fi

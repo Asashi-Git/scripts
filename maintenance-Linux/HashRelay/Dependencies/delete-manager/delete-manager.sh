@@ -434,7 +434,7 @@ get_backup_name() {
   done
 
   if [[ "$VERBOSE" == true ]]; then
-    printf 'Done. Added %d entr%s.\n' "$added" $([[ $added -eq 1 ]] && echo "y" || echo "ies")
+    printf 'Done. Added %d entr%s.\n' "$added" "$([[ $added -eq 1 ]] && echo "y" || echo "ies")"
   fi
 }
 
@@ -604,6 +604,8 @@ make_age
 #   get_actual_files  -> exports ACTUAL_FILES[]
 #   make_age          -> rebuilds AGE indices in AGE_CONF
 # Remove backups for any <name> that is NOT present in BACKUP_CONF.
+# TODO:
+# THIS FUNCTION HAVE ACTUALLY A PROBLEM I NEED TO FIX IT.
 remove_unwanted_backups() {
   # Verification steps
   [[ -z ${BACKUP_DIR:-} ]] && {

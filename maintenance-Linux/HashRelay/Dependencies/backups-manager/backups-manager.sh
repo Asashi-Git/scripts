@@ -286,4 +286,4 @@ echo "$USER_PATH_NAME"
 echo "=== END Backup Run ==="
 
 # Finally, chain to the delete-manager script; exec replaces the current process
-exec sudo bash "$NEXT_SCRIPT"
+exec sudo bash "$NEXT_SCRIPT" --verbose
