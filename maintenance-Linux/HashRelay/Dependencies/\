@@ -27,7 +27,6 @@ CONFIG="/usr/local/bin/HashRelay/agent.conf"
 NEXT="/usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh"
 TIMER_CALL=false
 VERBOSE=false
-DRYRUN=false
 
 # usage(): print help text:
 usage() {
@@ -36,7 +35,6 @@ usage() {
   Options:
     --timer                   Put/change the timer inside the file agent.conf
     --verbose                 Extra logging
-    --dry-run                 Show command; don't execute
     -h|--help                 This help
   Environement:
     This script is used to get the TIMER 
@@ -57,10 +55,6 @@ while [[ $# -gt 0 ]]; do
     ;;
   --verbose)
     VERBOSE=true # Extra logging
-    shift
-    ;;
-  --dry-run)
-    DRYRUN=true # Don't execute
     shift
     ;;
   -h | --help)
@@ -308,16 +302,9 @@ fi
 
 # Creating for each needed timer and service a configuration with systemd
 # with OnBootSec/OnUnitActiveSec and Persistent=true
+#
 
-# For the client:
 if [[ "$IS_CLIENT" == true ]]; then
-  get_existing_timer || {
-    printf 'ERROR: You should have a configured timer\n' >&2
-    printf 'Configure it by typing hashrelay --conf in your terminal'
-    exit 1
-  }
-
-  # Create systemd service
   cat <<EOF | sudo tee "$BACKUP_SERVICE_PATH" >/dev/null
 [Unit]
 Description=Hashrelay-backups service
@@ -344,19 +331,9 @@ Unit=hashrelay-backups.service
 WantedBy=timers.target
 EOF
 
-  if [[ "$DRYRUN" == false ]]; then
-    sudo systemctl daemon-reload
-    sudo systemctl enable --now hashrelay-backups.timer
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now ${NAME}.timer
 
-    echo "Timer hashrelay-backups.timer created with TIME='${CONFIGURED_TIMER}m'"
-  else
-    printf 'The service file have been created at %s\n' "$BACKUP_SERVICE_PATH"
-    printf 'The timer path have been created at %s\n' "$BACKUP_TIMER_PATH"
-    printf 'The deamons have not been reloaded\n'
-    printf 'If you consider that theses file look great, you can reload them\n'
-  fi
+  echo "Timer ${NAME}.timer created with TIME='${TIME}'"
 fi
-
-# For the server:
-
 echo "=== END Backup Run ==="
