@@ -183,7 +183,7 @@ elif [[ "$SERVER_AGENT" == true ]]; then
     sudo mv "$LOCATION_PATH/Dependencies/agent-detector" "/usr/local/bin/HashRelay"
     printf 'CLIENT_AGENT=false\n' | sudo tee -a "/usr/local/bin/HashRelay/agent.conf" >/dev/null
     printf 'SERVER_AGENT=true\n' | sudo tee -a "/usr/local/bin/HashRelay/agent.conf" >/dev/null
-    printf '# Contain all the backup files paths\nHashRelay=/usr/local/bin/HashRelay' | sudo tee -a "/usr/local/bin/HashRelay/backups-manager/backups.conf" >/dev/null
+    printf '# Contain all the backup files paths\nHashRelay=/usr/local/bin/HashRelay\n' | sudo tee -a "/usr/local/bin/HashRelay/backups-manager/backups.conf" >/dev/null
     printf '# Contain all the hash for each backups file\n' | sudo tee -a "/usr/local/bin/HashRelay/hash-printer/hash.conf" >/dev/null
     printf '# Contain the age of each backups file\n' | sudo tee -a "/usr/local/bin/HashRelay/delete-manager/age.conf" >/dev/null
     sudo rm -rf "$LOCATION_PATH/Dependencies"

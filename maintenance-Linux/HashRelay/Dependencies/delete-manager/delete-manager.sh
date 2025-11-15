@@ -606,6 +606,16 @@ make_age
 # Remove backups for any <name> that is NOT present in BACKUP_CONF.
 # TODO:
 # THIS FUNCTION HAVE ACTUALLY A PROBLEM I NEED TO FIX IT.
+# The problem is that if in the BACKUP_CONF there is only one backup
+# this function remove all the backups in BACKUP_DIR
+# if there is more then one backup inside BACKUP_CONF
+# all work great...
+# This bug is only durint the first lunch of the script so:
+# if I don't add a second backup inside BACKUP_CONF the function bug
+# if I add a second backup inside BACKUP_CONF there is no bug
+# if I have added a second backup in BACKUP_CONF and then I luch the script and then
+# I remove it, there is no bug anymore and the function work great with only one backup
+# in BACKUP_CONF.
 remove_unwanted_backups() {
   # Verification steps
   [[ -z ${BACKUP_DIR:-} ]] && {
