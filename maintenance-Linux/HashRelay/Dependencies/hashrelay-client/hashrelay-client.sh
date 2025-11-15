@@ -18,6 +18,7 @@ CONFIG_FILE="/usr/local/bin/HashRelay/agent.conf"
 VERBOSE=false # If true, print extra diagnostic logs
 DRY_RUN=false # If true, only print commands; do not execute
 CLI=false     # If true, no graphical interface will be displayed
+NEXT="/usr/local/bin/HashRelay/ssh-configuration-manager/ssh-configuration-manager.sh"
 
 # usage(): print help text:
 usage() {
@@ -86,7 +87,7 @@ client_configurator() {
       "Welcome to $title"
 
     # Menu
-    choice=$(printf "Configure your machine name\nConfigure the server IP\nConfigure the server Port\nConfigure how many backups of the same file do you want to keep on your machine\nSet your timer between each backups\nSee the config file\nQuit" |
+    choice=$(printf "Configure your machine name\nConfigure the server IP\nConfigure the server Port\nConfigure how many backups of the same file do you want to keep on your machine\nSet your timer between each backups\nSee the config file\nQuit & Reload the configuration" |
       gum choose --cursor.foreground="#ff5fd2" --header "Choose an action")
     [ -z "${choice:-}" ] && exit 0
 
@@ -140,9 +141,9 @@ client_configurator() {
         sudo bash /usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh
       fi
       ;;
-    "Quit")
+    "Quit & Reload the configuration")
       echo "See you later !"
-      exit 0
+      exec sudo bash "$NEXT"
       ;;
     esac
 
