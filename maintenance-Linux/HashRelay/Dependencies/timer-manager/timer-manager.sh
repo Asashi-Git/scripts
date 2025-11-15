@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# TODO:
+#   For the uninstall script we need to delete the timers and reload the deamons.
+#
 # Configure TIMER in /usr/local/bin/HashRelay/agent.conf
 # This script:
 #   - Reads the existing TIMER from the config (if present)
@@ -290,9 +293,13 @@ if [[ "$IS_CLIENT" == true ]]; then
   if [[ "$VERBOSE" == true ]]; then
     printf 'Creating the backups service file at %s\n' "$BACKUP_SERVICE_PATH"
     printf 'Creating the backups timer file at %s\n' "$BACKUP_TIMER_PATH"
+    printf 'Creating the delete service file at %s\n' "$DELETE_SERVICE_PATH"
+    printf 'Creating the delete timer file at %s\n' "$DELETE_TIMER_PATH"
   fi
   sudo touch "$BACKUP_SERVICE_PATH"
   sudo touch "$BACKUP_TIMER_PATH"
+  sudo touch "$DELETE_SERVICE_PATH"
+  sudo touch "$DELETE_TIMER_PATH"
 else
   if [[ "$VERBOSE" == true ]]; then
     printf 'Creating the delete service file at %s\n' "$DELETE_SERVICE_PATH"
@@ -317,7 +324,7 @@ if [[ "$IS_CLIENT" == true ]]; then
     exit 1
   }
 
-  # Create systemd service
+  # Create systemd backup service
   cat <<EOF | sudo tee "$BACKUP_SERVICE_PATH" >/dev/null
 [Unit]
 Description=Hashrelay-backups service
@@ -329,7 +336,7 @@ Type=oneshot
 ExecStart=$BACKUP_MANAGER_PATH
 EOF
 
-  # Create systemd timer
+  # Create systemd backup timer
   cat <<EOF | sudo tee "$BACKUP_TIMER_PATH" >/dev/null
 [Unit]
 Description=Timer for hashrelay-backups
@@ -344,14 +351,50 @@ Unit=hashrelay-backups.service
 WantedBy=timers.target
 EOF
 
+  # Create systemd delete service
+  cat <<EOF | sudo tee "$DELETE_SERVICE_PATH" >/dev/null
+[Unit]
+Description=Hashrelay-delete service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=$DELETE_MANAGER_PATH
+EOF
+
+  # Create systemd delete timer
+  cat <<EOF | sudo tee "$DELETE_TIMER_PATH" >/dev/null
+[Unit]
+Description=Timer for hashrelay-delete
+
+[Timer]
+OnBootSec=${CONFIGURED_TIMER}m
+OnUnitActiveSec=${CONFIGURED_TIMER}m
+Persistent=true
+Unit=hashrelay-delete.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
   if [[ "$DRYRUN" == false ]]; then
+    printf 'Reloading the deamons'
     sudo systemctl daemon-reload
+    printf 'Enabeling the timer'
     sudo systemctl enable --now hashrelay-backups.timer
+    sudo systemctl enable --now hashrelay-delete.timer
 
     echo "Timer hashrelay-backups.timer created with TIME='${CONFIGURED_TIMER}m'"
+    printf 'The service file have been created at %s\n' "$BACKUP_SERVICE_PATH"
+    printf 'The timer path have been created at %s\n' "$BACKUP_TIMER_PATH"
+    printf 'The service file have been created at %s\n' "$DELETE_SERVICE_PATH"
+    printf 'The timer path have been created at %s\n' "$DELETE_TIMER_PATH"
   else
     printf 'The service file have been created at %s\n' "$BACKUP_SERVICE_PATH"
     printf 'The timer path have been created at %s\n' "$BACKUP_TIMER_PATH"
+    printf 'The service file have been created at %s\n' "$DELETE_SERVICE_PATH"
+    printf 'The timer path have been created at %s\n' "$DELETE_TIMER_PATH"
     printf 'The deamons have not been reloaded\n'
     printf 'If you consider that theses file look great, you can reload them\n'
   fi

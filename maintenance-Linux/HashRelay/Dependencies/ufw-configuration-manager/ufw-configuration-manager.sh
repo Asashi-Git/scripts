@@ -5,7 +5,7 @@
 #
 # Author: Decarnelle Samuel
 
-NEXT=/usr/local/bin/HashRelay/timer-manager/timer-manager.sh
+NEXT="/usr/local/bin/HashRelay/timer-manager/timer-manager.sh"
 
 echo "=== Checking UFW status ==="
 
@@ -14,7 +14,6 @@ if command -v ufw >/dev/null 2>&1; then
   echo "UFW is installed."
 else
   echo "UFW is NOT installed."
-  exit 1
 fi
 
 # Check if service is enabled
