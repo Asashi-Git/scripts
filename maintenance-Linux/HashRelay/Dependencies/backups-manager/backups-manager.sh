@@ -243,6 +243,8 @@ trim() {
 # And a backup of/var/log/HashRelay/delete-manager/log.log
 # The two backup will have the same name but they are different backups
 # In that situation, using the full path avoid this mistake.
+# SOLUTION:
+# Put the full path and replace the "/" with "_".
 sanitize_name() {
   printf '%s' "$1" | tr ' /' '__' | tr -cd '[:alnum:]._-' || true
 }
