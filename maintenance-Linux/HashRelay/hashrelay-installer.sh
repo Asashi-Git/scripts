@@ -155,7 +155,7 @@ if [[ "$CLIENT_AGENT" == true ]]; then
     sudo mv "$LOCATION_PATH/Dependencies/ufw-configuration-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/timer-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/agent-detector" "/usr/local/bin/HashRelay"
-    sudo mv "$LOCATION_PATH/Dependencies/hashrelay" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/hashrelay/hashrelay" "/usr/local/bin"
     printf 'CLIENT_AGENT=true\n' | sudo tee -a "/usr/local/bin/HashRelay/agent.conf" >/dev/null
     printf 'SERVER_AGENT=false\n' | sudo tee -a "/usr/local/bin/HashRelay/agent.conf" >/dev/null
     printf '# Contain all the backup files paths\n_usr_local_bin_HashRelay=/usr/local/bin/HashRelay\n' | sudo tee -a "/usr/local/bin/HashRelay/backups-manager/backups.conf" >/dev/null
@@ -182,7 +182,7 @@ elif [[ "$SERVER_AGENT" == true ]]; then
     sudo mv "$LOCATION_PATH/Dependencies/ufw-configuration-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/timer-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/agent-detector" "/usr/local/bin/HashRelay"
-    sudo mv "$LOCATION_PATH/Dependencies/hashrelay" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/hashrelay/hashrelay" "/usr/local/bin"
     printf 'CLIENT_AGENT=false\n' | sudo tee -a "/usr/local/bin/HashRelay/agent.conf" >/dev/null
     printf 'SERVER_AGENT=true\n' | sudo tee -a "/usr/local/bin/HashRelay/agent.conf" >/dev/null
     printf '# Contain all the backup files paths\n_usr_local_bin_HashRelay=/usr/local/bin/HashRelay\n' | sudo tee -a "/usr/local/bin/HashRelay/backups-manager/backups.conf" >/dev/null
