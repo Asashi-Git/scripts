@@ -293,13 +293,9 @@ if [[ "$IS_CLIENT" == true ]]; then
   if [[ "$VERBOSE" == true ]]; then
     printf 'Creating the backups service file at %s\n' "$BACKUP_SERVICE_PATH"
     printf 'Creating the backups timer file at %s\n' "$BACKUP_TIMER_PATH"
-    printf 'Creating the delete service file at %s\n' "$DELETE_SERVICE_PATH"
-    printf 'Creating the delete timer file at %s\n' "$DELETE_TIMER_PATH"
   fi
   sudo touch "$BACKUP_SERVICE_PATH"
   sudo touch "$BACKUP_TIMER_PATH"
-  sudo touch "$DELETE_SERVICE_PATH"
-  sudo touch "$DELETE_TIMER_PATH"
 else
   if [[ "$VERBOSE" == true ]]; then
     printf 'Creating the delete service file at %s\n' "$DELETE_SERVICE_PATH"
@@ -366,8 +362,91 @@ EOF
     printf 'The deamons have not been reloaded\n'
     printf 'If you consider that theses file look great, you can reload them\n'
   fi
-fi
 
 # For the server:
+else
+  get_existing_timer || {
+    printf 'ERROR: You should have a configured timer\n' >&2
+    printf 'Configure it by typing hashrelay --conf in your terminal'
+    exit 1
+  }
 
+  # Create systemd delete service
+  cat <<EOF | sudo tee "$DELETE_SERVICE_PATH" >/dev/null
+[Unit]
+Description=Hashrelay-delete service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=$DELETE_MANAGER_PATH
+EOF
+
+  # Create systemd delete timer
+  cat <<EOF | sudo tee "$DELETE_TIMER_PATH" >/dev/null
+[Unit]
+Description=Timer for hashrelay-backups
+
+[Timer]
+OnBootSec=${CONFIGURED_TIMER}m
+OnUnitActiveSec=${CONFIGURED_TIMER}m
+Persistent=true
+Unit=hashrelay-delete.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+  # Create systemd receiver service
+  cat <<EOF | sudo tee "$RECEIVER_SERVICE_PATH" >/dev/null
+[Unit]
+Description=Hashrelay-receiver service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=$RECEIVER_MANAGER_PATH
+EOF
+
+  # Create systemd receiver timer
+  cat <<EOF | sudo tee "$RECEIVER_TIMER_PATH" >/dev/null
+[Unit]
+Description=Timer for hashrelay-receiver
+
+[Timer]
+OnBootSec=${CONFIGURED_TIMER}m
+OnUnitActiveSec=${CONFIGURED_TIMER}m
+Persistent=true
+Unit=hashrelay-receiver.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+  if [[ "$DRYRUN" == false ]]; then
+    printf 'Reloading the deamons'
+    sudo systemctl daemon-reload
+    printf 'Enabeling the timer'
+    sudo systemctl enable --now hashrelay-delete.timer
+    sudo systemctl enable --now hashrelay-receiver.timer
+
+    echo "Timer hashrelay-backups.timer created with TIME='${CONFIGURED_TIMER}m'"
+    printf 'The service file have been created at %s\n' "$DELETE_SERVICE_PATH"
+    printf 'The timer path have been created at %s\n' "$DELETE_TIMER_PATH"
+    printf 'The service file have been created at %s\n' "$RECEIVER_SERVICE_PATH"
+    printf 'The timer path have been created at %s\n' "$RECEIVER_TIMER_PATH"
+  else
+    printf 'The service file have been created at %s\n' "$DELETE_SERVICE_PATH"
+    printf 'The timer path have been created at %s\n' "$DELETE_TIMER_PATH"
+    printf 'The service file have been created at %s\n' "$RECEIVER_SERVICE_PATH"
+    printf 'The timer path have been created at %s\n' "$RECEIVER_TIMER_PATH"
+    printf 'The deamons have not been reloaded\n'
+    printf 'If you consider that theses file look great, you can reload them\n'
+  fi
+
+fi
+
+# End of log
 echo "=== END Backup Run ==="
