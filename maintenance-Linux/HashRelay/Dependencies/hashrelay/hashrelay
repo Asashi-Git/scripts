@@ -9,9 +9,12 @@
 
 # Ensure we are root
 if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
-  echo "This script must be run as root (use sudo)." >&2
+  echo "HashRelay must be run as root (use sudo)." >&2
   exit 1
 fi
+
+ADD=false
+REMOVE=false
 
 # usage(): print help text:
 usage() {
@@ -19,6 +22,8 @@ usage() {
   HASHRELAY
   Options:
     --config                  Change the configuration in your local machine
+    --add                     Add a file/directory to the backups list
+    --remove                  Remove a file/directory the the backups list
     -h|--help                 This help
   Environement:
     This agent work is used to make backups in your local machine and send them 
@@ -35,6 +40,14 @@ while [[ $# -gt 0 ]]; do
     exec sudo bash /usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh # Lunch the config script
     shift
     ;;
+  --add)
+    ADD=true # To add to the backup list
+    shift
+    ;;
+  --remove)
+    REMOVE=true # To remove from the backup list
+    shift
+    ;;
   -h | --help)
     usage
     exit 0
@@ -46,3 +59,42 @@ while [[ $# -gt 0 ]]; do
     ;;
   esac
 done
+
+# Set the add function if the user called the agent with add flag
+add_file() {
+  local input="$1"
+
+  # If input is absolute path
+  if [[ "$input" = /* ]]; then
+    filepath="$input"
+  else
+    # Relative file → resolve to current directory path
+    filepath="$(pwd)/$input"
+  fi
+
+  # Check if the file exists
+  if [[ -e "$filepath" ]]; then # True if the path exists as anything (file, directory, symlink, socket, device, etc) -d for directory -f for file
+    echo "hashrelay has added $filepath"
+  else
+    echo "hashrelay cannot add $input, verify your file name or path"
+    exit 1
+  fi
+}
+
+if [[ "$ADD" == true ]]; then
+  add_file
+
+  case "$1" in
+  --add)
+    if [[ -z "$2" ]]; then
+      echo "[!] Missing argument: you must provide a file name."
+      exit 1
+    fi
+    add_file "$2"
+    ;;
+
+  *)
+    echo "Unknown command: $1"
+    ;;
+  esac
+fi
