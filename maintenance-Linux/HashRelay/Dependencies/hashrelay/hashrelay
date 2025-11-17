@@ -15,6 +15,7 @@ fi
 
 ADD=false
 REMOVE=false
+BACKUP_CONF="/usr/local/bin/HashRelay/backups-manager/backups.conf"
 
 # usage(): print help text:
 usage() {
@@ -70,11 +71,13 @@ add_file() {
   else
     # Relative file → resolve to current directory path
     filepath="$(pwd)/$input"
+    name="${filepath//\//_}"
   fi
 
   # Check if the file exists
   if [[ -e "$filepath" ]]; then # True if the path exists as anything (file, directory, symlink, socket, device, etc) -d for directory -f for file
     echo "hashrelay has added $filepath"
+    echo "The name of the backup is $name"
   else
     echo "hashrelay cannot add $input, verify your file name or path"
     exit 1
