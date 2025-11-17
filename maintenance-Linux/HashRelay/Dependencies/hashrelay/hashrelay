@@ -45,18 +45,62 @@ add_file() {
   # Convert slashes to underscores
   name="${filepath//\//_}"
 
-  # Remove leading underscore
-  #name="${name#_}"
+  # Create a variable line
+  line="${name}=${filepath}"
 
   # Check existence
   if [[ -e "$filepath" ]]; then
-    echo "hashrelay has added $filepath"
-    echo "The name of the backup is $name"
-    printf 'HashRelay added %s inside %s as: %s=%s\n' "$name" "$BACKUP_CONF" "$name" "$filepath"
-    printf '%s=%s\n' "$name" "$filepath" >>"$BACKUP_CONF"
+    if grep -Fxq "$line" "$BACKUP_CONF"; then
+      echo "[i] Entry already exists in $BACKUP_CONF, skipping."
+    else
+      printf '%s\n' "$line" >>"$BACKUP_CONF"
+      printf '[+] Added entry %s to %s\n' "$line" "$BACKUP_CONF"
+    fi
   else
-    echo "hashrelay cannot add $input, verify your file name or path"
+    echo "[!] hashrelay cannot add $input, verify your file name or path"
     exit 1
+  fi
+}
+
+# =======================================================
+# REMOVE FUNCTION
+# =======================================================
+remove_file() {
+  local input="$1"
+
+  # No argument?
+  if [[ -z "$input" ]]; then
+    echo "[!] Missing argument: you must provide a file name."
+    exit 1
+  fi
+
+  # Detect absolute vs relative path
+  if [[ "$input" = /* ]]; then
+    filepath="$input"
+  else
+    filepath="$(pwd)/$input"
+  fi
+
+  # Convert slashes to underscores
+  name="${filepath//\//_}"
+
+  # Create a variable line
+  line="${name}=${filepath}"
+
+  # Check if the line exists in the conf
+  if grep -Fxq "$line" "$BACKUP_CONF"; then
+    # -q: quiet mode
+    # Remove the exact line
+    grep -Fxv "$line" "$BACKUP_CONF" >"${BACKUP_CONF}.tmp"
+    # -F: literal match
+    # -x: match the entire line
+    # -v: invert: output all non matching lines
+    # This keeps everything except the line you want to delete
+    mv "${BACKUP_CONF}.tmp" "$BACKUP_CONF"
+
+    printf '[-] Removed entry %s from %s\n' "$line" "$BACKUP_CONF"
+  else
+    echo "[i] No matching entry found in $BACKUP_CONF, nothing to remove."
   fi
 }
 
@@ -110,7 +154,7 @@ config)
   exec sudo bash /usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh
   ;;
 remove)
-  echo "Remove not implemented yet"
+  remove_file "$ARGUMENT"
   ;;
 "")
   usage
