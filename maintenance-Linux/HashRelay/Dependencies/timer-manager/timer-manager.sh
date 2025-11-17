@@ -407,7 +407,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=$RECEIVER_MANAGER_PATH
+ExecStart=$RECEIVER_PATH
 EOF
 
   # Create systemd receiver timer

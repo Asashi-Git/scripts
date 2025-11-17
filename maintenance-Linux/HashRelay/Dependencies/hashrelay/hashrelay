@@ -19,6 +19,7 @@ Options:
   --config                     Change the configuration
   --add <path>                 Add a file/directory to backups
   --remove <path>              Remove a file/directory from backups
+  --uninstall                  Uninstall the agent [!] Irreversible [!]
   -h|--help                    Show this help
 USAGE
 }
@@ -125,6 +126,9 @@ while [[ $# -gt 0 ]]; do
   --config)
     ACTION="config"
     ;;
+  --uninstall)
+    ACTION="uninstall"
+    ;;
   -h | --help)
     usage
     exit 0
@@ -155,6 +159,9 @@ config)
   ;;
 remove)
   remove_file "$ARGUMENT"
+  ;;
+uninstall)
+  exec sudo bash /usr/local/bin/HashRelay/uninstaller/uninstaller.sh
   ;;
 "")
   usage

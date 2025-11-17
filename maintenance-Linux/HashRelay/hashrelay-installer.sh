@@ -155,6 +155,7 @@ if [[ "$CLIENT_AGENT" == true ]]; then
     sudo mv "$LOCATION_PATH/Dependencies/ufw-configuration-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/timer-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/agent-detector" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/uninstaller" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/hashrelay/hashrelay" "/usr/local/bin"
     sudo chmod +x /usr/local/bin/hashrelay
     printf 'CLIENT_AGENT=true\n' | sudo tee -a "/usr/local/bin/HashRelay/agent.conf" >/dev/null
@@ -183,6 +184,7 @@ elif [[ "$SERVER_AGENT" == true ]]; then
     sudo mv "$LOCATION_PATH/Dependencies/ufw-configuration-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/timer-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/agent-detector" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/uninstaller" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/hashrelay/hashrelay" "/usr/local/bin"
     sudo chmod +x /usr/local/bin/hashrelay
     printf 'CLIENT_AGENT=false\n' | sudo tee -a "/usr/local/bin/HashRelay/agent.conf" >/dev/null
