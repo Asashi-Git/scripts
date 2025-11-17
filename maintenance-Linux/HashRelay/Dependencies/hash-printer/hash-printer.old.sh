@@ -65,56 +65,6 @@ else
   printf 'Server is considered: %s\n' "$IS_SERVER"
 fi
 
-compare_with_server() {
-  local client_name="$1"
-  local client_hash_file="$2"
-
-  local server_hash_file="/usr/local/bin/HashRelay/hash-printer/hash/server-hash/server-hash.conf"
-  local output_changes="/usr/local/bin/HashRelay/hash-printer/hash/${client_name}/hash-to-add.conf"
-
-  declare -A client_map
-  declare -A server_hashes
-
-  # 1. Parse client hash file into HASH → PATH mapping
-  #    Your file format:
-  #    -backup1:
-  #    <hash>
-  #
-  local current_file=""
-  while read -r line; do
-    if [[ "$line" =~ ^-(.*):$ ]]; then
-      current_file="${BASH_REMATCH[1]}"
-    elif [[ "$line" =~ ^[0-9a-f]{64}$ ]]; then
-      client_map["$line"]="$BACKUP_PATH/$client_name/$current_file"
-    fi
-  done <"$client_hash_file"
-
-  # 2. Load server hashes into memory
-  if [[ -f "$server_hash_file" && -s "$server_hash_file" ]]; then
-    while read -r line; do
-      if [[ "$line" =~ ^[0-9a-f]{64}$ ]]; then
-        server_hashes["$line"]=1
-      fi
-    done <"$server_hash_file"
-  fi
-
-  echo "# Path to send to server for $client_name:" >"$output_changes"
-
-  # 3. Compare and output PATH instead of HASH
-  local changes=0
-  for hash in "${!client_map[@]}"; do
-    if [[ -z "${server_hashes[$hash]}" ]]; then
-      echo "${client_map[$hash]}" >>"$output_changes"
-      ((changes++))
-    fi
-  done
-
-  # 4. If no differences → delete file
-  if [[ $changes -eq 0 ]]; then
-    rm "$output_changes"
-  fi
-}
-
 # Generate hash for each client inside /home/HashRelay/backups/
 # Generate a file containing the hashs inside:
 # /usr/local/bin/HashRelay/hash-printer/hash/<CLIENT_NAME>/hash.conf
@@ -123,6 +73,7 @@ generate_hashes() {
   local backup_root="$BACKUP_PATH"
   local output_root="$HASH_PATH"
 
+  # Loop through each client directory
   for client_dir in "$backup_root"/*; do
 
     # Skip if not a directory
@@ -154,13 +105,6 @@ generate_hashes() {
     done
 
     chmod -R 655 "$client_output_dir"
-
-    # Compare with server only on client side
-    if [[ "$IS_CLIENT" == true ]]; then
-      compare_with_server "$client_name" "$hash_file"
-    fi
-
   done
 }
-
 generate_hashes
