@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
-# This script is the agent that listen for the input of a user to lunch the dependencies
-# scripts that make the agent work.
+# This is the agent that listen for the input of a user to lunch the dependencies
+# scripts that make the full project work.
 #
 # Author: Decarnelle Samuel
-
-# === HASHRELAY AGENT ===
-# A simple dispatcher CLI agent
 
 # Ensure we are root
 if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
@@ -13,69 +10,44 @@ if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
   exit 1
 fi
 
-ADD=false
-REMOVE=false
-BACKUP_CONF="/usr/local/bin/HashRelay/backups-manager/backups.conf"
-
-# usage(): print help text:
 usage() {
   cat <<'USAGE'
-  HASHRELAY
-  Options:
-    --config                  Change the configuration in your local machine
-    --add                     Add a file/directory to the backups list
-    --remove                  Remove a file/directory the the backups list
-    -h|--help                 This help
-  Environement:
-    This agent work is used to make backups in your local machine and send them 
-    automatically onto your configured server.
-  Behavior:
-    You must call the agent with flag to interact with him.
+HASHRELAY
+Options:
+  --config                     Change the configuration
+  --add <path>                 Add a file/directory to backups
+  --remove <path>              Remove a file/directory from backups
+  -h|--help                    Show this help
 USAGE
 }
 
-# Parse CLI arguments in a loop until all are consumed
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-  --config)
-    exec sudo bash /usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh # Lunch the config script
-    shift
-    ;;
-  --add)
-    ADD=true # To add to the backup list
-    shift
-    ;;
-  --remove)
-    REMOVE=true # To remove from the backup list
-    shift
-    ;;
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *)
-    echo "[!] Unknow arg: $1"
-    usage
-    exit 1
-    ;;
-  esac
-done
-
-# Set the add function if the user called the agent with add flag
+# =======================================================
+# ADD FUNCTION
+# =======================================================
 add_file() {
   local input="$1"
 
-  # If input is absolute path
+  # No argument?
+  if [[ -z "$input" ]]; then
+    echo "[!] Missing argument: you must provide a file name."
+    exit 1
+  fi
+
+  # Detect absolute vs relative path
   if [[ "$input" = /* ]]; then
     filepath="$input"
   else
-    # Relative file → resolve to current directory path
     filepath="$(pwd)/$input"
-    name="${filepath//\//_}"
   fi
 
-  # Check if the file exists
-  if [[ -e "$filepath" ]]; then # True if the path exists as anything (file, directory, symlink, socket, device, etc) -d for directory -f for file
+  # Convert slashes to underscores
+  name="${filepath//\//_}"
+
+  # Remove leading underscore
+  name="${name#_}"
+
+  # Check existence
+  if [[ -e "$filepath" ]]; then
     echo "hashrelay has added $filepath"
     echo "The name of the backup is $name"
   else
@@ -84,20 +56,59 @@ add_file() {
   fi
 }
 
-if [[ "$ADD" == true ]]; then
-  add_file
+# =======================================================
+# MAIN ARG PARSER
+# =======================================================
+ACTION=""
+ARGUMENT=""
 
+while [[ $# -gt 0 ]]; do
   case "$1" in
   --add)
-    if [[ -z "$2" ]]; then
-      echo "[!] Missing argument: you must provide a file name."
+    ACTION="add"
+    shift
+    ARGUMENT="$1"
+    ;;
+  --remove)
+    ACTION="remove"
+    shift
+    ARGUMENT="$1"
+    ;;
+  --config)
+    ACTION="config"
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    # unknown argument
+    if [[ -n "$ACTION" && -z "$ARGUMENT" ]]; then
+      ARGUMENT="$1"
+    else
+      echo "[!] Unknown arg: $1"
+      usage
       exit 1
     fi
-    add_file "$2"
-    ;;
-
-  *)
-    echo "Unknown command: $1"
     ;;
   esac
-fi
+  shift
+done
+
+# =======================================================
+# EXECUTE ACTION
+# =======================================================
+case "$ACTION" in
+add)
+  add_file "$ARGUMENT"
+  ;;
+config)
+  exec sudo bash /usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh
+  ;;
+remove)
+  echo "Remove not implemented yet"
+  ;;
+"")
+  usage
+  ;;
+esac
