@@ -104,6 +104,9 @@ get_existing_name() {
 }
 
 # Get the name for the path of the backup path
+# TODO:
+# For the server we need to do a loop for each client name found inside the
+# BACKUP_DIR
 USER_PATH_NAME=$(get_existing_name)
 BACKUP_DIR="/home/sam/backups/$USER_PATH_NAME" # will be changed in the release from sam to HashRelay
 

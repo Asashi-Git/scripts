@@ -21,7 +21,7 @@ if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
 fi
 
 CONFIG_FILE="/usr/local/bin/HashRelay/agent.conf"
-HASH_CONF="/usr/local/bin/HashRelay/hash-printer/hash.conf"
+#HASH_CONF="/usr/local/bin/HashRelay/hash-printer/hash.conf"
 HASH_PATH="/usr/local/bin/HashRelay/hash-printer/hash"
 BACKUP_PATH="/home/sam/backups" # Must be changed to HashRelay
 
@@ -84,7 +84,11 @@ generate_hashes() {
 
     mkdir -p "$client_output_dir"
 
-    hash_file="$client_output_dir/hash.conf"
+    if [[ "$IS_CLIENT" == true ]]; then
+      hash_file="$client_output_dir/hash.conf"
+    else
+      hash_file="$client_output_dir/server-hash.conf"
+    fi
 
     echo "# This is all of the hash of $client_name:" >"$hash_file"
 
@@ -99,6 +103,8 @@ generate_hashes() {
       sha256sum "$backup_file" | awk '{print $1}' >>"$hash_file"
       echo "" >>"$hash_file"
     done
+
+    chmod -R 655 "$client_output_dir"
   done
 }
 generate_hashes
