@@ -1,4 +1,5 @@
 # generic_name     optional manager-specific overrides
 gum
+openssh           ubuntu=openssh-server debian=openssh-server fedora=openssh-server
 net-tools          zypper=net-tools-deprecated nix=nettools
 btop
