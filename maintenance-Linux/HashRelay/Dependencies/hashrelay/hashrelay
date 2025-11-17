@@ -10,6 +10,8 @@ if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
   exit 1
 fi
 
+BACKUP_CONF="/usr/local/bin/HashRelay/backups-manager/backups.conf"
+
 usage() {
   cat <<'USAGE'
 HASHRELAY
@@ -44,12 +46,14 @@ add_file() {
   name="${filepath//\//_}"
 
   # Remove leading underscore
-  name="${name#_}"
+  #name="${name#_}"
 
   # Check existence
   if [[ -e "$filepath" ]]; then
     echo "hashrelay has added $filepath"
     echo "The name of the backup is $name"
+    printf 'HashRelay added %s inside %s as: %s=%s\n' "$name" "$BACKUP_CONF" "$name" "$filepath"
+    printf '%s=%s\n' "$name" "$filepath" >>"$BACKUP_CONF"
   else
     echo "hashrelay cannot add $input, verify your file name or path"
     exit 1
