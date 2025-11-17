@@ -31,6 +31,7 @@ NEXT=/usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh
 CONFIG_FILE="/usr/local/bin/HashRelay/agent.conf" # The main config file (where we need to add the CHAIN_BACKUPS_NUMBER)
 NUMBER=false
 VERBOSE=false
+NEXT_SCRIPT=/usr/local/bin/HashRelay/hash-printer/hash-printer.sh
 
 # usage(): print help text:
 usage() {
@@ -846,3 +847,5 @@ delete_old
 
 # Finish the log
 echo "=== END Delete Run ==="
+
+exec sudo bash "$NEXT_SCRIPT"
