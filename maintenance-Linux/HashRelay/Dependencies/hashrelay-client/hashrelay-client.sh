@@ -86,6 +86,16 @@ client_configurator() {
     gum style --border double --margin "1 2" --padding "1 2" --border-foreground 212 \
       "Welcome to $title"
 
+    ### Server Status
+    gum spin --spinner dot --title "Fetching the Server Status..." -- \
+      /usr/local/bin/HashRelay/prob-viewer/prob-viewer.sh
+
+    if [[ $? -eq 0 ]]; then
+      gum style --foreground 10 --bold "✔ Server is UP"
+    else
+      gum style --foreground 9 --bold "✘ Server is DOWN"
+    fi
+
     # Menu
     choice=$(printf "Configure your machine name\nConfigure the server IP\nConfigure the server Port\nConfigure how many backups of the same file do you want to keep on your machine\nSet your timer between each backups\nSee the config file\nQuit & Reload the configuration" |
       gum choose --cursor.foreground="#ff5fd2" --header "Choose an action")

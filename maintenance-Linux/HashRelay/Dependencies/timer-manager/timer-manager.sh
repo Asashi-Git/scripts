@@ -225,9 +225,9 @@ fi
 #           07- The backups-manager.sh lunch the delete-manager.sh script
 #           08- The delete-manager.sh lunch the hash-printer.sh
 #           09- The hash-printer.sh lunch the prob-viewer.sh
-#           10- The prob-viewer.sh verrify the server is up if up, lunch the sender.sh
-#           11- The sender.sh send/retreve the hash.file lunch the scp.sh
-#           12- Then scp.sh send the backups to the server
+#           10- The prob-viewer.sh verrify the server is up if up, lunch the scp.sh
+#           11- The scp.sh send the backups to the server and finally lunch sender.sh
+#           12- Then sender.sh retreave the new hash of the server.
 #      *  If on the server:
 #           03- The configurator lunch the ssh-configuration-manager.sh
 #           04- The ssh-configuration-manager.sh lunch:
