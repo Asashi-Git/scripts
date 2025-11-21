@@ -22,6 +22,37 @@ else
   IS_UP=false
 fi
 
+DRY_RUN=false
+
+# usage(): print help text:
+usage() {
+  cat <<'USAGE'
+  scp.sh
+  Options:
+    --dry-run                 Show command; don't execute
+    -h|--help                 This help
+  Environement:
+    This script is used to scp the baclups to the server.
+  Behavior:
+    Only the agent call this script. You don't need to.
+USAGE
+}
+
+# Parse CLI arguments in a loop until all are consumed
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --dry-run)
+    DRY_RUN=true # Show command don't execute.
+    shift
+    ;;
+  *)
+    echo "[!] Unknow arg: $1"
+    usage
+    exit 1
+    ;;
+  esac
+done
+
 # Variable for the main config file
 CONFIG="/usr/local/bin/HashRelay/agent.conf"
 
@@ -85,9 +116,38 @@ get_existing_name() {
   echo "$line"
 }
 
+get_existing_port() {
+  [[ -f "$CONFIG" ]] || {
+    echo ""
+    return
+  }
+
+  local line
+  line="$(grep -E '^[[:space:]]*SERVER_PORT[[:space:]]*=' "$CONFIG" | tail -n1 || true)"
+  [[ -z "$line" ]] && {
+    echo ""
+    return
+  }
+
+  line="${line#*=}"
+
+  # Trim leading/trailing whitespace
+  line="${line#"${line%%[![:space:]]*}"}" # ltrim
+  line="${line%"${line##*[![:space:]]}"}" # rtrim
+
+  # Remove surrounding single/double quotes, if any
+  line="${line%\"}"
+  line="${line#\"}"
+  line="${line%\'}"
+  line="${line#\'}"
+
+  echo "$line"
+}
+
 NEEDED_BACKUPS="/usr/local/bin/HashRelay/hash-printer/hash/$(get_existing_name)/hash-to-add.conf"
-SERVER_PATH="/home/HashRelay/$(get_existing_name)/backups"
+SERVER_PATH="/home/HashRelay/$(get_existing_name)/backups" #TODO: change it to HashRelay user
 IP_ADD=$(get_existing)
+PORT=$(get_existing_port)
 
 # Making a variable to get each path for each different hash backup
 # between the client and the server
@@ -117,7 +177,13 @@ send_backups_path() {
     fi
 
     echo "Sending: $line"
-    scp -r "$line" "HashRelay@$IP_ADD:$SERVER_PATH"
+
+    if [[ "$DRY_RUN" == false ]]; then
+      #scp -r "$line" "sam@$IP_ADD:$SERVER_PATH"
+      scp -r -i /usr/local/bin/scp/HashRelay_rsa -p "$PORT" "$line" "HashRelay@$IP_ADD:$SERVER_PATH"
+    else
+      echo "scp -r -i /usr/local/bin/HashRelay/scp/HashRelay_rsa -p $PORT $line HashRelay@$IP_ADD:$SERVER_PATH"
+    fi
 
     # Check return code
     if [[ $? -ne 0 ]]; then
@@ -131,15 +197,22 @@ send_backups_path() {
 if [[ -n "$IP_ADD" ]]; then
   echo "Actual configured IP: $IP_ADD"
 
-  # Verify that the server is IP before sending anything
-  if [[ "$IS_UP" == true ]]; then
-    # Can start to send via scp each backups file to the server.
-    echo "The server is up"
-    # Send the backups to the server
-    send_backups_path
+  if [[ -n "$PORT" ]]; then
+    echo "Actual configured Port: $PORT"
+
+    # Verify that the server is IP before sending anything
+    if [[ "$IS_UP" == true ]]; then
+      # Can start to send via scp each backups file to the server.
+      echo "The server is up"
+      # Send the backups to the server
+      send_backups_path
+    else
+      # Try to send the backups next time if the server is up
+      echo "The server is Down"
+    fi
+
   else
-    # Try to send the backups next time if the server is up
-    echo "The server is Down"
+    echo "ERROR: Port not configured"
   fi
 
 else
