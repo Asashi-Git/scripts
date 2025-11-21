@@ -1,0 +1,15 @@
+What I have installed for my cybersecurity course:
+
+    sudo pacman -S blackarch-scanner
+    sudo pacman -S blackarch-exploitation
+    sudo pacman -S blackarch-recon
+    sudo pacman -S blackarch-networking
+    sudo pacman -S blackarch-defensive
+    sudo pacman -S blackarch-wireless
+    sudo pacman -S blackarch-cracker
+    sudo pacman -S blackarch-forensic
+    sudo pacman -S blackarch-crypto
+    sudo pacman -S blackarch-backdoor
+    sudo pacman -S blackarch-malware
+
+That's it!
