@@ -114,23 +114,24 @@ else
   printf 'Server is considered: %s\n' "$IS_SERVER"
 fi
 
+get_all_clients() {
+  echo "Trying to get all client"
+}
+
+if [[ "$IS_CLIENT" == true ]]; then
+  echo "Client config found"
+  USER_PATH_NAME=$(get_existing_name)
+else
+  echo "Server Config found"
+  USER_PATH_NAME=$(get_all_clients)
+fi
+
+# Get the name for the path of the backup path
 # TODO:
-# For the server we need to do a loop for each client name found inside the BACKUP_DIR
-
-BACKUP_PATH="/home/sam/backups" # Need to be changed to HashRelay for the release
-
-# Creating a for loop to loop through each <CLIENT_NAME>
-for client_dir in "$BACKUP_PATH"/*; do
-
-  # Skip if not a directory
-  [[ -d "$client_dir" ]] || continue
-
-  # Get the name of each user
-  client_name=$(basename "$client_dir")
-
-  # Get the path for each user
-  BACKUP_DIR="$BACKUP_PATH/$client_name"
-done
+# For the server we need to do a loop for each client name found inside the
+# BACKUP_DIR
+USER_PATH_NAME=$(get_existing_name)
+BACKUP_DIR="/home/sam/backups/$USER_PATH_NAME" # will be changed in the release from sam to HashRelay
 
 # Only if --number is invoked
 if [[ "$NUMBER" == true ]]; then
