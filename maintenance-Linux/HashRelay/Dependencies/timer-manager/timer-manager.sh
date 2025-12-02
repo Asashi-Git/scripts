@@ -77,19 +77,17 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$TIMER_CALL" == false ]]; then
-  # See if we are onto a client or a server configuration
-  CLIENT_OR_SERVER=$(/usr/local/bin/HashRelay/agent-detector/agent-detector.sh)
-  # Let's print the result:
-  if [[ "$CLIENT_OR_SERVER" == "true" ]]; then
-    IS_CLIENT=true
-    printf 'Client is considered: %s\n' "$IS_CLIENT"
-    NEXT="/usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh"
-  else
-    IS_SERVER=true
-    printf 'Server is considered: %s\n' "$IS_SERVER"
-    NEXT="/usr/local/bin/HashRelay/hashrelay-server/hashrelay-server.sh"
-  fi
+# See if we are onto a client or a server configuration
+CLIENT_OR_SERVER=$(/usr/local/bin/HashRelay/agent-detector/agent-detector.sh)
+# Let's print the result:
+if [[ "$CLIENT_OR_SERVER" == "true" ]]; then
+  IS_CLIENT=true
+  printf 'Client is considered: %s\n' "$IS_CLIENT"
+  NEXT="/usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh"
+else
+  IS_SERVER=true
+  printf 'Server is considered: %s\n' "$IS_SERVER"
+  NEXT="/usr/local/bin/HashRelay/hashrelay-server/hashrelay-server.sh"
 fi
 
 # Read the last TIMER entry from CONFIG (if file exists)
