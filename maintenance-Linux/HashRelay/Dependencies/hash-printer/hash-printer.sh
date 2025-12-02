@@ -75,7 +75,7 @@ compare_with_server() {
   declare -A client_map
   declare -A server_hashes
 
-  # 1. Parse client hash file into HASH → PATH mapping
+  # 1. Parse client hash file into HASH > PATH mapping
   #    Your file format:
   #    -backup1:
   #    <hash>
