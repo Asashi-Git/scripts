@@ -24,6 +24,19 @@ Options:
 USAGE
 }
 
+# See if we are onto a client or a server configuration
+CLIENT_OR_SERVER=$(/usr/local/bin/HashRelay/agent-detector/agent-detector.sh)
+# Let's print the result:
+if [[ "$CLIENT_OR_SERVER" == "true" ]]; then
+  IS_CLIENT=true
+  printf 'Client is considered: %s\n' "$IS_CLIENT"
+  NEXT=/usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh
+else
+  IS_SERVER=true
+  printf 'Server is considered: %s\n' "$IS_SERVER"
+  NEXT=/usr/local/bin/HashRelay/hashrelay-server/hashrelay-server.sh
+fi
+
 # =======================================================
 # ADD FUNCTION
 # =======================================================
@@ -155,7 +168,7 @@ add)
   add_file "$ARGUMENT"
   ;;
 config)
-  exec sudo bash /usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh
+  exec sudo bash "$NEXT"
   ;;
 remove)
   remove_file "$ARGUMENT"
