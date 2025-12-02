@@ -27,7 +27,6 @@ fi
 
 # Main variables
 BACKUP_CONF="/usr/local/bin/HashRelay/backups-manager/backups.conf"
-NEXT=/usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh
 CONFIG_FILE="/usr/local/bin/HashRelay/agent.conf" # The main config file (where we need to add the CHAIN_BACKUPS_NUMBER)
 NUMBER=false
 VERBOSE=false
@@ -109,9 +108,11 @@ CLIENT_OR_SERVER=$(/usr/local/bin/HashRelay/agent-detector/agent-detector.sh)
 if [[ "$CLIENT_OR_SERVER" == "true" ]]; then
   IS_CLIENT=true
   printf 'Client is considered: %s\n' "$IS_CLIENT"
+  NEXT=/usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh
 else
   IS_SERVER=true
   printf 'Server is considered: %s\n' "$IS_SERVER"
+  NEXT=/usr/local/bin/HashRelay/hashrelay-server/hashrelay-server.sh
 fi
 
 # Only if --number is invoked

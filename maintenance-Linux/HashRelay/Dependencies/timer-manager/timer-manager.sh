@@ -27,7 +27,6 @@ fi
 # Main variables
 title="Timer Configurator"
 CONFIG="/usr/local/bin/HashRelay/agent.conf"
-NEXT="/usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh"
 TIMER_CALL=false
 VERBOSE=false
 DRYRUN=false
@@ -85,9 +84,11 @@ if [[ "$TIMER_CALL" == false ]]; then
   if [[ "$CLIENT_OR_SERVER" == "true" ]]; then
     IS_CLIENT=true
     printf 'Client is considered: %s\n' "$IS_CLIENT"
+    NEXT="/usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh"
   else
     IS_SERVER=true
     printf 'Server is considered: %s\n' "$IS_SERVER"
+    NEXT="/usr/local/bin/HashRelay/hashrelay-server/hashrelay-server.sh"
   fi
 fi
 
@@ -202,7 +203,7 @@ if [[ "$TIMER_CALL" == true ]]; then
   set_timer "$TIMER"
   echo "Your timer is set to: $TIMER"
 
-  # Finally, chain to the client script; exec replaces the current process
+  # Finally, chain to the configurator script; exec replaces the current process
   exec sudo bash "$NEXT"
 fi
 

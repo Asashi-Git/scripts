@@ -114,7 +114,7 @@ server_configurator() {
       fi
       if [[ "$DRY_RUN" == false ]]; then
         gum pager </usr/local/bin/HashRelay/agent.conf
-        sudo bash /usr/local/bin/HashRelay/hashrelay-client/hashrelay-client.sh
+        sudo bash /usr/local/bin/HashRelay/hashrelay-server/hashrelay-server.sh
       fi
       ;;
     "Quit & Reload the configuration")
