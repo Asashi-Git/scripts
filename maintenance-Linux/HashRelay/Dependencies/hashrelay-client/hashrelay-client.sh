@@ -166,6 +166,3 @@ client_configurator() {
 
 }
 client_configurator
-
-# NEED TO RELOAD THE CONFIGURATION WHEN THE CLIENT EXIT TO MAKE SURE timer-manager GET
-# RELOADED IN CASE OF A CHANGE
