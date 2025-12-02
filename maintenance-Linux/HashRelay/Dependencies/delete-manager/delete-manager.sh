@@ -239,7 +239,7 @@ exec > >(awk '{ print strftime("[%Y-%m-%d %H:%M:%S%z]"), $0; fflush(); }' | tee 
 
 echo "=== START delete run ==="
 
-BACKUP_PATH="/home/sam/backups" # TODO: Need to be changed to HashRelay for the release
+BACKUP_PATH="/home/HashRelay/backups"
 
 # Creating a for loop to loop through each <CLIENT_NAME>
 for client_dir in "$BACKUP_PATH"/*; do

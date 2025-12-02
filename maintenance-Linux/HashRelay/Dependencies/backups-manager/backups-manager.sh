@@ -98,7 +98,7 @@ get_existing_name() {
 
 # Get the name for the path of the backup path
 USER_PATH_NAME=$(get_existing_name)
-BACKUP_DIR="/home/sam/backups/$USER_PATH_NAME" # Need to be changed before release to HashRelay!!!!!
+BACKUP_DIR="/home/HashRelay/backups/$USER_PATH_NAME"
 
 # Only if --name is invoked
 if [[ "$NAME" == true ]]; then

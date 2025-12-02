@@ -23,7 +23,7 @@ fi
 CONFIG_FILE="/usr/local/bin/HashRelay/agent.conf"
 #HASH_CONF="/usr/local/bin/HashRelay/hash-printer/hash.conf"
 HASH_PATH="/usr/local/bin/HashRelay/hash-printer/hash"
-BACKUP_PATH="/home/sam/backups" # Must be changed to HashRelay
+BACKUP_PATH="/home/HashRelay/backups"
 
 # Get the name of the client if onto the client machine
 get_existing_name() {

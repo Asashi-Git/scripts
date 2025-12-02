@@ -90,6 +90,8 @@ agent_selector() {
       echo "Starting the installation/configuration !"
       CLIENT_AGENT=true
       SERVER_AGENT=false
+      sudo useradd -m -s /bin/bash HashRelay
+      sudo passwd -l HashRelay
       break
       ;;
     2)
@@ -97,6 +99,8 @@ agent_selector() {
       echo "Starting the installation/configuration !"
       CLIENT_AGENT=false
       SERVER_AGENT=true
+      sudo useradd -m -s /bin/bash HashRelay
+      sudo passwd -l HashRelay
       break
       ;;
     *)
