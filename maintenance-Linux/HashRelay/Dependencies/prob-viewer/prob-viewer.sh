@@ -60,7 +60,7 @@ fi
 
 # Ping the IP of the server
 ping_host_v4() {
-  ping -4 -c 4 "$1" >/dev/null 2>&1
+  ping -4 -c 2 "$1" >/dev/null 2>&1
 }
 
 if [[ -n "$IP_ADD" ]]; then
