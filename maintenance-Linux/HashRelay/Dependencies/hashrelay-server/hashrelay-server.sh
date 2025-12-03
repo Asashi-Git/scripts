@@ -131,3 +131,4 @@ server_configurator() {
     echo "Starting the client configuration:"
   fi
 }
+server_configurator

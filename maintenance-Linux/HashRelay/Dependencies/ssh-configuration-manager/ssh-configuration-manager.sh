@@ -112,13 +112,45 @@ else
   fi
 fi
 
+# function to see if the ssh configuration si already done
+get_config() {
+  [[ -f "$SSH_PATH" ]] || {
+    echo ""
+    return
+  }
+
+  local line
+  line="$(grep -E 'Match User HashRelay' "$SSH_PATH" | tail -n1 || true)"
+  [[ -z "$line" ]] && {
+    echo ""
+    return
+  }
+
+  line="${line#*=}"
+
+  # Trim leading/trailing whitespace
+  line="${line#"${line%%[![:space:]]*}"}" # ltrim
+  line="${line%"${line##*[![:space:]]}"}" # rtrim
+
+  # Remove surrounding single/double quotes, if any
+  line="${line%\"}"
+  line="${line#\"}"
+  line="${line%\'}"
+  line="${line#\'}"
+
+  echo "$line"
+}
+
+RESULT=$(get_config)
+
 # Putting the configuration inside the SSH_PATH
-if [[ "$IS_SERVER" == true ]]; then
-  if [[ "$SSH_PATH" ]]; then
-    if [[ "$IS_INSTALLED" == true ]]; then
-      if [[ "$IS_RUNNING" == true ]]; then
-        echo "[*] Starting to put the configuration inside the $SSH_PATH file"
-        cat <<EOF | sudo tee -a "$SSH_PATH" >/dev/null
+if [[ ! "$RESULT" == "Match User HashRelay" ]]; then
+  if [[ "$IS_SERVER" == true ]]; then
+    if [[ "$SSH_PATH" ]]; then
+      if [[ "$IS_INSTALLED" == true ]]; then
+        if [[ "$IS_RUNNING" == true ]]; then
+          echo "[*] Starting to put the configuration inside the $SSH_PATH file"
+          cat <<EOF | sudo tee -a "$SSH_PATH" >/dev/null
 Match User HashRelay
     AllowUsers HashRelay
     PasswordAuthentication no
@@ -129,16 +161,19 @@ Match User HashRelay
     AuthorizedKeysFile	.ssh/id_HashRelay.pub
 EOF
 
-        echo "[*] Configuration file $SSH_PATH UPDATED !"
+          echo "[*] Configuration file $SSH_PATH UPDATED !"
 
-        # Creating the key for the ssh
-        sudo -u HashRelay ssh-keygen -t ed25519 -f /home/HashRelay/.ssh/id_HashRelay
+          # Creating the key for the ssh
+          sudo -u HashRelay ssh-keygen -t ed25519 -f /home/HashRelay/.ssh/id_HashRelay
 
-        # Restart the sshd service
-        sudo systemclt restart sshd
+          # Restart the sshd service
+          sudo systemclt restart sshd
+        fi
       fi
     fi
   fi
+else
+  echo "[!] Skipping The config was found inside $SSH_PATH"
 fi
 
 # Then execute the next script
