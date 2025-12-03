@@ -24,6 +24,7 @@ CONFIG_FILE="/usr/local/bin/HashRelay/agent.conf"
 #HASH_CONF="/usr/local/bin/HashRelay/hash-printer/hash.conf"
 HASH_PATH="/usr/local/bin/HashRelay/hash-printer/hash"
 BACKUP_PATH="/home/HashRelay/backups"
+NEXT="/usr/local/bin/HashRelay/scp/scp.sh"
 
 # Get the name of the client if onto the client machine
 get_existing_name() {
@@ -109,9 +110,17 @@ compare_with_server() {
     fi
   done
 
-  # 4. If no differences → delete file
+  # 4. If no differences > delete file
   if [[ $changes -eq 0 ]]; then
     rm "$output_changes"
+  else
+    # If there is some differences > lunch the scp scripts to send the backups
+    if [[ "$IS_CLIENT" == true ]]; then
+      echo "[*] Lunching the scp script to send the needed backups"
+      sudo bash "$NEXT"
+    else
+      echo "[*] Continue..."
+    fi
   fi
 }
 

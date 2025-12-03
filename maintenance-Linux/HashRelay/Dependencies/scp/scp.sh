@@ -145,7 +145,7 @@ get_existing_port() {
 }
 
 NEEDED_BACKUPS="/usr/local/bin/HashRelay/hash-printer/hash/$(get_existing_name)/hash-to-add.conf"
-SERVER_PATH="/home/HashRelay/$(get_existing_name)/backups" #TODO: change it to HashRelay user
+SERVER_PATH="/home/HashRelay/backups/$(get_existing_name)" #TODO: change it to HashRelay user
 IP_ADD=$(get_existing)
 PORT=$(get_existing_port)
 
@@ -180,7 +180,7 @@ send_backups_path() {
 
     if [[ "$DRY_RUN" == false ]]; then
       #scp -r "$line" "sam@$IP_ADD:$SERVER_PATH"
-      scp -r -i /usr/local/bin/scp/HashRelay_rsa -p "$PORT" "$line" "HashRelay@$IP_ADD:$SERVER_PATH"
+      scp -r -i /home/HashRelay/.ssh/id_HashRelay -p "$PORT" "$line" "HashRelay@$IP_ADD:$SERVER_PATH"
     else
       echo "scp -r -i /usr/local/bin/HashRelay/scp/HashRelay_rsa -p $PORT $line HashRelay@$IP_ADD:$SERVER_PATH"
     fi
