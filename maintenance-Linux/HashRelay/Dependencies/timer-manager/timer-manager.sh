@@ -77,6 +77,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+IS_CLIENT=false
+IS_SERVER=false
 # See if we are onto a client or a server configuration
 CLIENT_OR_SERVER=$(/usr/local/bin/HashRelay/agent-detector/agent-detector.sh)
 # Let's print the result:
