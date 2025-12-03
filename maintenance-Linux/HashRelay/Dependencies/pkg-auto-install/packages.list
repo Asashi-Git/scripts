@@ -1,5 +1,7 @@
 # generic_name     optional manager-specific overrides
 gum
+python3
+yazi
 wget
 openssh           ubuntu=openssh-server debian=openssh-server fedora=openssh-server
 net-tools          zypper=net-tools-deprecated nix=nettools

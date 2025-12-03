@@ -156,6 +156,7 @@ if [[ "$CLIENT_AGENT" == true ]]; then
     sudo mv "$LOCATION_PATH/Dependencies/prob-viewer" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/sender" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/ssh-configuration-manager" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/key-fetcher" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/ufw-configuration-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/timer-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/agent-detector" "/usr/local/bin/HashRelay"

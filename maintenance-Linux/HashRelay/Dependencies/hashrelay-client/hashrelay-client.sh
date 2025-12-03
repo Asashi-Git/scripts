@@ -97,7 +97,7 @@ client_configurator() {
     fi
 
     # Menu
-    choice=$(printf "Configure your machine name\nConfigure the server IP\nConfigure the server Port\nConfigure how many backups of the same file do you want to keep on your machine\nSet your timer between each backups\nSee the config file\nQuit & Reload the configuration" |
+    choice=$(printf "Configure your machine name\nConfigure the server IP\nConfigure the server Port\nDownload the server id_rsa key\nConfigure how many backups of the same file do you want to keep on your machine\nSet your timer between each backups\nSee the config file\nQuit & Reload the configuration" |
       gum choose --cursor.foreground="#ff5fd2" --header "Choose an action")
     [ -z "${choice:-}" ] && exit 0
 
@@ -124,6 +124,14 @@ client_configurator() {
       fi
       if [[ "$VERBOSE" == true ]]; then
         echo "lunching the contact-port script"
+      fi
+      ;;
+    "Download the server id_rsa key")
+      if [[ "$DRY_RUN" == false ]]; then
+        sudo bash /usr/local/bin/HashRelay/key-fetcher/key-fetcher.sh
+      fi
+      if [[ "$VERBOSE" == true ]]; then
+        echo "lunching the key-fetcher script"
       fi
       ;;
     "Configure how many backups of the same file do you want to keep on your machine")
