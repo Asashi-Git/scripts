@@ -167,7 +167,7 @@ EOF
           sudo -u HashRelay ssh-keygen -t ed25519 -f /home/HashRelay/.ssh/id_HashRelay
 
           # Restart the sshd service
-          sudo systemclt restart sshd
+          sudo systemctl restart sshd
         fi
       fi
     fi
