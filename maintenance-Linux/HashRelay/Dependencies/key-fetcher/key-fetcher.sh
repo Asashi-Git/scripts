@@ -3,6 +3,12 @@
 #
 # Author: VANCAPPEL Marc
 
+# TODO: Change the chmod 600 to the key
+# sudo chown -R HashRelay:HashRelay /home/HashRelay/.ssh
+# sudo chmod 700 /home/HashRelay/.ssh
+# sudo chmod 600 /home/HashRelay/.ssh/known_hosts
+# sudo -u HashRelay ssh -i /home/HashRelay/.ssh/id_HashRelay HashRelay@192.168.150.22
+
 set -euo pipefail
 
 CONFIG="/usr/local/bin/HashRelay/agent.conf"
@@ -93,7 +99,7 @@ key_verify() {
 key_get() {
   if [ $STATE = true ]; then
     if [ ! -d /home/HashRelay/.ssh ]; then
-      mkdir -pv /home/HashRelay/.ssh
+      mkdir -p /home/HashRelay/.ssh
     fi
     wget -O /home/HashRelay/.ssh/id_HashRelay $ADDRESS:$PORT/$KEY_NAME
   fi

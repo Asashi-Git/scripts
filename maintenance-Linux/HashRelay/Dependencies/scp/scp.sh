@@ -180,9 +180,12 @@ send_backups_path() {
 
     if [[ "$DRY_RUN" == false ]]; then
       #scp -r "$line" "sam@$IP_ADD:$SERVER_PATH"
-      scp -r -i /home/HashRelay/.ssh/id_HashRelay -p "$PORT" "$line" "HashRelay@$IP_ADD:$SERVER_PATH"
+
+      echo "scp -r -P \"$PORT\" -i /home/HashRelay/.ssh/id_HashRelay \"$line\" \"HashRelay@$IP_ADD:$SERVER_PATH\""
+      sudo -u HashRelay scp -r -P "$PORT" -i /home/HashRelay/.ssh/id_HashRelay "$line" "HashRelay@$IP_ADD:$SERVER_PATH"
+
     else
-      echo "scp -r -i /usr/local/bin/HashRelay/scp/HashRelay_rsa -p $PORT $line HashRelay@$IP_ADD:$SERVER_PATH"
+      echo "scp -r -P $PORT -i /home/HashRelay/.ssh/id_HashRelay $line HashRelay@$IP_ADD:$SERVER_PATH"
     fi
 
     # Check return code
