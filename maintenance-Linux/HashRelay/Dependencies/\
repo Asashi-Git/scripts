@@ -164,7 +164,8 @@ EOF
           echo "[*] Configuration file $SSH_PATH UPDATED !"
 
           # Creating the key for the ssh
-          #sudo -u HashRelay ssh-keygen -t ed25519 -f /home/HashRelay/.ssh/id_HashRelay
+          sudo -u HashRelay ssh-keygen -t ed25519 -f /home/HashRelay/.ssh/id_HashRelay
+
           sudo -u HashRelay ssh-keygen -t ed25519 \
             -f /home/HashRelay/.ssh/id_HashRelay \
             -N "" -q
