@@ -169,6 +169,8 @@ if [[ "$CLIENT_AGENT" == true ]]; then
     printf '# Contain all the backup files paths\n' | sudo tee -a "/usr/local/bin/HashRelay/backups-manager/backups.conf" >/dev/null
     printf '# Contain all the hash for each backups file\n' | sudo tee -a "/usr/local/bin/HashRelay/hash-printer/hash.conf" >/dev/null
     sudo rm -rf "$LOCATION_PATH/Dependencies"
+    sudo mkdir -p /home/HashRelay/backups
+    sudo chown HashRelay:root /home/HashRelay/backups
   fi
 elif [[ "$SERVER_AGENT" == true ]]; then
   if [[ "$VERBOSE" == true ]]; then
@@ -189,6 +191,7 @@ elif [[ "$SERVER_AGENT" == true ]]; then
     sudo mv "$LOCATION_PATH/Dependencies/ufw-configuration-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/timer-manager" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/agent-detector" "/usr/local/bin/HashRelay"
+    sudo mv "$LOCATION_PATH/Dependencies/key-sender" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/uninstaller" "/usr/local/bin/HashRelay"
     sudo mv "$LOCATION_PATH/Dependencies/hashrelay/hashrelay" "/usr/local/bin"
     sudo chmod +x /usr/local/bin/hashrelay
@@ -198,6 +201,7 @@ elif [[ "$SERVER_AGENT" == true ]]; then
     printf '# Contain all the hash for each backups file\n' | sudo tee -a "/usr/local/bin/HashRelay/hash-printer/hash.conf" >/dev/null
     sudo rm -rf "$LOCATION_PATH/Dependencies"
     sudo mkdir -p /home/HashRelay/backups
+    sudo chown HashRelay:root /home/HashRelay/backups
   fi
 else
   echo "Cannot find the agent configuration (This should not happen)."
