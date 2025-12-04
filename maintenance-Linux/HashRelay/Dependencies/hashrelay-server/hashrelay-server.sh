@@ -87,7 +87,7 @@ server_configurator() {
       "Welcome to $title"
 
     # Menu
-    choice=$(printf "Configure how many backups of the same file do you want to keep on your machine\nSet your timer between each backups\nSee the config file\nQuit & Reload the configuration" |
+    choice=$(printf "Configure how many backups of the same file do you want to keep on your machine\nSet your timer between each backups\nStart the temporary HTTP server\nSee the config file\nQuit & Reload the configuration" |
       gum choose --cursor.foreground="#ff5fd2" --header "Choose an action")
     [ -z "${choice:-}" ] && exit 0
 
@@ -106,6 +106,14 @@ server_configurator() {
       fi
       if [[ "$VERBOSE" == true ]]; then
         echo "lunching the timer-manager script with --timer flag"
+      fi
+      ;;
+    "Start the temporary HTTP server")
+      if [[ "$DRY_RUN" == false ]]; then
+        sudo bash /usr/local/bin/HashRelay/key-sender/key-sender.sh
+      fi
+      if [[ "$VERBOSE" == true ]]; then
+        echo "lunching the key-sender script"
       fi
       ;;
     "See the config file")
