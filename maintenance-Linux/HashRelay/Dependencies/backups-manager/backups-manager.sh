@@ -214,7 +214,7 @@ LOG_DIR="/var/log/HashRelay"
 LOG_FILE="${LOG_DIR}/backup.log"
 umask 027
 mkdir -p -- "$LOG_DIR" "$BACKUP_DIR"
-# chown HashRelay:root "$BACKUP_DIR"
+chown HashRelay:root "$BACKUP_DIR"
 # Ensure log file exists with restrictive perms
 touch -- "$LOG_FILE"
 chmod 655 -- "$LOG_FILE" "$LOG_DIR"
@@ -256,7 +256,7 @@ while IFS= read -r line; do
 
   # Split at first '=' only
   BACKUP_NAME="$(trim "${line%%=*}")"
-  BACKUP_PATH="$(trim "${line#*=}5011 total")"
+  BACKUP_PATH="$(trim "${line#*=}")"
 
   if [[ -z "$BACKUP_NAME" || -z "$BACKUP_PATH" ]]; then
     echo "WARN: Invalid line (need BACKUP_NAME=BACKUP_PATH): $line"
@@ -286,7 +286,7 @@ while IFS= read -r line; do
     echo "OK: $ARCHIVE <= $BACKUP_PATH (name: $BACKUP_NAME)"
 
     # Changing the owner to HashRelay:root
-    # chown HashRelay:root "$ARCHIVE"
+    chown HashRelay:root "$ARCHIVE"
 
     # Optional integrity file:
     # sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
