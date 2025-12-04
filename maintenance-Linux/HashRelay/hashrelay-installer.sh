@@ -169,8 +169,8 @@ if [[ "$CLIENT_AGENT" == true ]]; then
     printf '# Contain all the backup files paths\n' | sudo tee -a "/usr/local/bin/HashRelay/backups-manager/backups.conf" >/dev/null
     printf '# Contain all the hash for each backups file\n' | sudo tee -a "/usr/local/bin/HashRelay/hash-printer/hash.conf" >/dev/null
     sudo rm -rf "$LOCATION_PATH/Dependencies"
-    sudo mkdir -p /home/HashRelay/backups
-    sudo chown HashRelay:root /home/HashRelay/backups
+    #sudo mkdir -p /home/HashRelay/backups
+    #sudo chown HashRelay:root /home/HashRelay/backups
   fi
 elif [[ "$SERVER_AGENT" == true ]]; then
   if [[ "$VERBOSE" == true ]]; then
