@@ -181,6 +181,11 @@ send_backups_path() {
     if [[ "$DRY_RUN" == false ]]; then
       #scp -r "$line" "sam@$IP_ADD:$SERVER_PATH"
 
+      # Changing the right for the file to be able to send them on the server
+      echo "Changing the right of the file $line"
+      echo "sudo chown HashRelay:HashRelay $line"
+      sudo chown HashRelay:HashRelay "$line"
+
       echo "scp -r -P \"$PORT\" -i /home/HashRelay/.ssh/id_HashRelay \"$line\" \"HashRelay@$IP_ADD:$SERVER_PATH\""
       sudo -u HashRelay scp -r -P "$PORT" -i /home/HashRelay/.ssh/id_HashRelay "$line" "HashRelay@$IP_ADD:$SERVER_PATH"
 
