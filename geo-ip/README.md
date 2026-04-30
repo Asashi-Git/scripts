@@ -21,8 +21,3 @@ sudo python geo_ip_wifi.py --wifi --interface wlp3s0
 ### Geolocate a specific IP + your WiFi location
 
 sudo python geo_ip_wifi.py 8.8.8.8 --wifi
-
-### wigle.net
-
-API Name: AID76e3b45c33b61f473c91d832624636af
-API Token: e270bf6f2e433468e1f2ec06d290421a
